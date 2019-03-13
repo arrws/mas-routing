@@ -14,10 +14,10 @@ data Human = Human { hname :: Int
 
 data Router = Router { rname :: Int
                      , routs :: [Int]
-                     , table :: [Int]
+                     , table :: [(Int, Int)]
                      }
 
-data Message = Message { mname :: Int
+data Potato = Potato { mname :: Int
                        , len :: Int
                        , msg :: [Char]
                        , history :: [Char]
@@ -29,46 +29,49 @@ class Name x where
 instance Name Human where name = hname
 instance Name Router where name = rname
 
--- class Outs x where
---     outs :: x -> [Int]
--- instance Outs Human where outs = houts
--- instance Outs Router where outs = routs
 
 
 delayThread t = lift $ threadDelay (t * 100000)
 
-getMessage h = forever $ do
+getPotato h = forever $ do
             delayThread (gen_rate h)
-            let m = Message { msg = "fuckthis" , history = "|", dest = (rem (gen_rate h) 5)}
+            let m = Potato { msg = "swap dis naw" , history = "|", dest = (rem (gen_rate h) 5)}
             yield m
 
-printMessage = forever $ do
+printPotato = forever $ do
                 delayThread 1
                 m <- await
                 lift $ print $ msg m ++ "    " ++ history m
 
-signMessage n = forever $ do
+signPotato n = forever $ do
                 delayThread 1
                 m <- await
                 yield $ m { history = (history m) ++ "-> " ++ show n}
 
-human_send h r_writer   = runEffect $ getMessage h
-                        >-> signMessage (name h)
+human_send h r_writer   = runEffect $ getPotato h
+                        >-> signPotato (name h)
                         >-> toOutput r_writer
 
 human_recv h h_reader   = runEffect $ fromInput h_reader
-                        >-> signMessage (name h)
-                        >-> printMessage
+                        >-> signPotato (name h)
+                        >-> printPotato
+
 
 router_route r r_reader h_writers = runEffect $ fromInput r_reader
-                                    >-> signMessage (name r)
-                                    >-> toOutput (choose_output h_writers $ table r)
+                                    >-> signPotato (name r)
+                                    >-> choose_output h_writers (table r)
 
 
+choose_output outputs table = forever $ do
+                m <- await
+                let
+                    out_addr = fst $ table !! (dest m)
+                    -- out = outputs !! out_addr
+                    out = outputs !! 0
+                lift $ ignore_m $ atomically $ send out m
 
-choose_output :: [smth] -> [Int] -> smth
-choose_output outputs table = outputs !! 0
-
+ignore_m a = do x<-a
+                return ()
 
 
 get_rand_num :: Int -> Int -> R.StdGen -> (Int, R.StdGen)
@@ -94,7 +97,7 @@ generate_routers :: Int -> [Int] -> [Int] -> Int -> R.StdGen -> ([Router], R.Std
 generate_routers 0 names l max_links g = ([], g)
 generate_routers n names l max_links g = (Router { rname = head names
                                                  , routs = rts
-                                                 , table = [ x | (_, x) <- zip names (cycle rts) ]
+                                                 , table = [ (x, 666) | (_, x) <- zip names (cycle rts) ]
                                                  }
                                                  :l', g'')
                                         where
@@ -134,8 +137,8 @@ main = do
     let
         writer = fst
         reader = snd
-        num_humans = 5
-        num_routers = 2
+        num_humans = 4
+        num_routers = 5
         num = num_humans + num_routers
         (humans, routers) = generate_agents num_humans num_routers
 
