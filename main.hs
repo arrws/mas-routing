@@ -8,7 +8,7 @@ import Control.Concurrent (threadDelay)
 
 
 data Human = Human { hname :: Int
-                   , houts :: [Int]
+                   , houts :: Int
                    , gen_rate :: Int
                    }
 
@@ -29,10 +29,10 @@ class Name x where
 instance Name Human where name = hname
 instance Name Router where name = rname
 
-class Outs x where
-    outs :: x -> [Int]
-instance Outs Human where outs = houts
-instance Outs Router where outs = routs
+-- class Outs x where
+--     outs :: x -> [Int]
+-- instance Outs Human where outs = houts
+-- instance Outs Router where outs = routs
 
 
 delayThread t = lift $ threadDelay (t * 100000)
@@ -62,7 +62,8 @@ human_recv h h_reader   = runEffect $ fromInput h_reader
 
 router_route r r_reader h_writers = runEffect $ fromInput r_reader
                                     >-> signMessage (name r)
-                                    >-> toOutput $ choose_output h_writers $ table r
+                                    >-> toOutput (choose_output h_writers $ table r)
+
 
 
 choose_output :: [smth] -> [Int] -> smth
@@ -103,7 +104,7 @@ generate_routers n names l max_links g = (Router { rname = head names
 generate_humans :: Int -> [Int] -> [Int] -> R.StdGen -> ([Human], R.StdGen)
 generate_humans 0 names l g = ([], g)
 generate_humans n names l g = (Human { hname = head names
-                                     , houts = [hts]
+                                     , houts = hts
                                      , gen_rate = delay
                                      }
                                      :l', g'')
@@ -113,16 +114,14 @@ generate_humans n names l g = (Human { hname = head names
                                 (l', g'') = generate_humans (n-1) (tail names) l g'
 
 
-generate_agents ::
-generate_agents  = do
-    let
-        num_humans = 10
-        num_routers = 25
+generate_agents :: Int -> Int -> ([Human], [Router])
+generate_agents num_humans num_routers  = (humans, routers)
+    where
         num = num_humans + num_routers
         max_links = 4   -- max router links
         g = R.mkStdGen 0
 
-        names = [x | x <- [1 .. num_humans + num_routers]]
+        names = [x | x <- [0 .. num_humans + num_routers-1]]
         h_names = take num_humans names
         r_names = drop num_humans names
 
@@ -130,29 +129,34 @@ generate_agents  = do
         (routers, _) = generate_routers num_routers r_names names max_links g
 
 
-    print $ h_names
-    print $ r_names
-    print $ map outs humans
-    print $ map outs routers
-
-    return (humans, routers)
-
-
-
-
 
 main = do
     let
         writer = fst
         reader = snd
+        num_humans = 5
+        num_routers = 2
+        num = num_humans + num_routers
+        (humans, routers) = generate_agents num_humans num_routers
 
-    (humans, routers) = generate_agents
+    print $ map hname humans
+    print $ map houts humans
+    print $ map rname routers
+    print $ map routs routers
 
-    pipes <- sequence $ map (\_ -> spawn unbounded) [0..num]
+    pipes <- sequence $ map (\_ -> spawn unbounded) [0..(num-1)]
 
-    h_recv_tasks <- sequence $ [async $ human_recv h (reader $ pipes !! i) | (h, i) <- zip humans [0..] ]
-    h_send_tasks <- sequence $ [async $ human_send h (writer $ pipes !! r) | (h, i, [r]) <- zip3 humans [0..] $ map outs humans ]
-    r_route_tasks <- sequence $ [async $ router_route r (reader $ pipes !! (num_humans+i+1)) [writer $ pipes !! j | j <- friends] | (r, i, friends) <- zip3 routers [0..] $ map outs routers ]
+    let
+        human_reader_pipes = [reader $ pipes !! i | i <- [0..(num_humans-1)]]
+        human_writer_pipes = [writer $ pipes !! (houts (humans !! i)) | i <- [0..(num_humans-1)]]
+
+        router_reader_pipes = [reader $ pipes !! i | i <- [num_humans..(num-1)]]
+        router_writer_pipes = [[writer $ pipes !! j | j <- friends] | friends <- (map routs routers)]
+
+
+    h_recv_tasks <- sequence $ [async $ task | task <- zipWith human_recv humans human_reader_pipes]
+    h_send_tasks <- sequence $ [async $ task | task <- zipWith human_send humans human_writer_pipes]
+    r_route_tasks <- sequence $ [async $ task | task <- zipWith3 router_route routers router_reader_pipes router_writer_pipes]
 
     waitAny h_send_tasks
 
