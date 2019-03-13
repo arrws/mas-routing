@@ -10,7 +10,6 @@ import Control.Concurrent (threadDelay)
 data Human = Human { hname :: Int
                    , houts :: [Int]
                    , gen_rate :: Int
-
                    }
 
 data Router = Router { rname :: Int
@@ -40,7 +39,7 @@ delayThread t = lift $ threadDelay (t * 100000)
 
 getMessage h = forever $ do
             delayThread (gen_rate h)
-            let m = Message { msg = "fuck is the message" , history = "|", dest = (rem (gen_rate h) 5)}
+            let m = Message { msg = "fuckthis" , history = "|", dest = (rem (gen_rate h) 5)}
             yield m
 
 printMessage = forever $ do
@@ -63,7 +62,13 @@ human_recv h h_reader   = runEffect $ fromInput h_reader
 
 router_route r r_reader h_writers = runEffect $ fromInput r_reader
                                     >-> signMessage (name r)
-                                    >-> toOutput (h_writers !! 0)
+                                    >-> toOutput $ choose_output h_writers $ table r
+
+
+choose_output :: [smth] -> [Int] -> smth
+choose_output outputs table = outputs !! 0
+
+
 
 get_rand_num :: Int -> Int -> R.StdGen -> (Int, R.StdGen)
 get_rand_num x y g = R.randomR (x, y-1) g
@@ -107,8 +112,9 @@ generate_humans n names l g = (Human { hname = head names
                                 (delay, _) = get_rand_num 0 5 g
                                 (l', g'') = generate_humans (n-1) (tail names) l g'
 
-main = do
 
+generate_agents ::
+generate_agents  = do
     let
         num_humans = 10
         num_routers = 25
@@ -120,10 +126,6 @@ main = do
         h_names = take num_humans names
         r_names = drop num_humans names
 
-        writer = fst
-        reader = snd
-
-
         (humans, _) = generate_humans num_humans h_names r_names g
         (routers, _) = generate_routers num_routers r_names names max_links g
 
@@ -133,13 +135,27 @@ main = do
     print $ map outs humans
     print $ map outs routers
 
+    return (humans, routers)
+
+
+
+
+
+main = do
+    let
+        writer = fst
+        reader = snd
+
+    (humans, routers) = generate_agents
+
     pipes <- sequence $ map (\_ -> spawn unbounded) [0..num]
 
     h_recv_tasks <- sequence $ [async $ human_recv h (reader $ pipes !! i) | (h, i) <- zip humans [0..] ]
     h_send_tasks <- sequence $ [async $ human_send h (writer $ pipes !! r) | (h, i, [r]) <- zip3 humans [0..] $ map outs humans ]
     r_route_tasks <- sequence $ [async $ router_route r (reader $ pipes !! (num_humans+i+1)) [writer $ pipes !! j | j <- friends] | (r, i, friends) <- zip3 routers [0..] $ map outs routers ]
 
-
     waitAny h_send_tasks
+
+
 
 
