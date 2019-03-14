@@ -13,7 +13,7 @@ data Human = Human { h_id   :: Int
                    }
 
 data Router = Router    { r_id      :: Int
-                        , r_outs     :: [Int]
+                        , r_out     :: [Int]
                         , r_table   :: [(Int, Int)]
                         }
 
@@ -28,6 +28,7 @@ data Message = Message { m_msg      :: [Char]
 --     where name = h_id
 -- instance Name Router
 --     where name = r_id
+
 
 delayThread t = lift $ threadDelay (t * 100000)
 
@@ -48,13 +49,18 @@ sign_message n = forever $ do
                 yield $ m { m_trace = (m_trace m) ++ "-> " ++ show n }
 
 
-h_service h in_node out_node = runEffect $ recv_input in_node
-                                >-> send_output
+h_send h output = runEffect $ get_message h
+                    >-> sign_message (h_name h)
+                    >-> toOutput output
+
+h_recv h input  = runEffect $ fromInput input
+                    >-> sign_message (h_name h)
+                    >-> print_message
 
 
-r_service r in_nodes out_nodes = runEffect $ recv_input in_node
-                                >-> send_output
-
+r_route r input outputs = runEffect $ fromInput input
+                            >-> signMessage (r_name r)
+                            >-> get_output outputs (r_table r)
 
 get_output outs table = forever $ do
                         m <- await
@@ -65,7 +71,6 @@ get_output outs table = forever $ do
 
 ignore_m a = do x<-a
                 return ()
-
 
 
 
@@ -123,7 +128,6 @@ gen_agents num_humans num_routers  = (humans, routers)
 
 
 
-
 main = do
     let
         writer = fst
@@ -138,27 +142,20 @@ main = do
     print $ map r_id routers
     print $ map r_out routers
 
-
-    h_ids = take num_humans [0..(num_humans + num_routers-1)]
-    r_ids = drop num_humans [0..(num_humans + num_routers-1)]
-
     pipes <- sequence $ map (\_ -> spawn unbounded) [0..(num-1)]
 
     let
-        h_readers = [ reader $ pipes !! i | i <- h_ids ]
-        h_writers = [ writer $ pipes !! (out (humans !! i)) | i <- h_ids ]
+        h_reader_pipes = [reader $ pipes !! i | i <- [0..(num_humans-1)]]
+        h_writer_pipes = [writer $ pipes !! (h_out (humans !! i)) | i <- [0..(num_humans-1)]]
+        r_reader_pipes = [reader $ pipes !! i | i <- [num_humans..(num-1)]]
+        r_writer_pipes = [[writer $ pipes !! j | j <- friends] | friends <- (map r_out routers)]
 
-        r_ins = map fst (filter (\(x,y) -> elem x y ) zip ids (map out ids))
-        r_outs = map out routers
+    -- bad design :(
 
-        r_readers = [ [ reader $ pipes !! j | j <- friends ] | friends <- r_ins ]
-        r_writers = [ [ writer $ pipes !! j | j <- friends ] | friends <- r_outs ]
-
-    h_tasks <- sequence $ [async $ task | task <- zipWith3 h_service humans h_readers h_writers ]
-    r_tasks <- sequence $ [async $ task | task <- zipWith3 r_service routers r_readers r_writers ]
-
+    h_recv_tasks <- sequence $ [async $ task | task <- zipWith h_recv humans h_reader_pipes]
+    h_send_tasks <- sequence $ [async $ task | task <- zipWith h_send humans h_writer_pipes]
+    r_route_tasks <- sequence $ [async $ task | task <- zipWith3 r_route routers r_reader_pipes r_writer_pipes]
 
     waitAny h_send_tasks
-
 
 
