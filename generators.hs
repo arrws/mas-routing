@@ -19,6 +19,9 @@ data Message = Message { m_msg      :: [Char]
                        , m_dest     :: Int
                        }
 
+symHuman = " |"
+symRouter = " "
+
 nINF = 9999
 
 gen_rand_num :: Int -> Int -> R.StdGen -> (Int, R.StdGen)
@@ -39,11 +42,11 @@ gen_rand_sublist l n g = (x:l', g')
 substract x l = filter (/=x) l
 
 gen_generators :: Int -> R.StdGen -> [R.StdGen]
-gen_generators 0 g = []
+gen_generators 0 _ = []
 gen_generators n g = g':gen_generators (n-1) g'
                     where
                         (_, g') = R.randomR (2,4) g :: (Integer, R.StdGen)
-gen_generators _ g = [g]
+gen_generators _ _ = []
 
 
 make_router :: Int -> [Int] -> [(Int,Int)] -> Router
@@ -59,8 +62,8 @@ make_human id out r = Human { h_id = id
                             }
 
 
-gen_humans :: Int -> [Int] -> [Int] -> R.StdGen -> ([Human], R.StdGen)
-gen_humans n ids outs g = (zipWith3 make_human ids outss rates, g)
+gen_humans :: [Int] -> [Int] -> R.StdGen -> ([Human], R.StdGen)
+gen_humans ids outs g = (zipWith3 make_human ids outss rates, last gs)
                         where
                             gs = gen_generators (length ids) g
                             lists = map (flip substract outs) ids
@@ -68,28 +71,32 @@ gen_humans n ids outs g = (zipWith3 make_human ids outss rates, g)
                             rates = map (fst . gen_rand_num 0 5) gs
 
 
-gen_routers :: Int -> [Int] -> [Int] -> Int -> R.StdGen -> ([Router], R.StdGen)
-gen_routers 0 ids outs max_links g = (zipWith3 make_router ids outss (repeat table), g)
+gen_routers :: [Int] -> [Int] -> Int -> R.StdGen -> ([Router], R.StdGen)
+gen_routers ids outs max_links g = (zipWith3 make_router ids outss tables, last gs)
+-- gen_routers ids outs max_links g = ([], last gs)
                                     where
                                         gs = gen_generators (length ids) g
                                         ns = map (fst . gen_rand_num 1 max_links) gs
+                                        -- ns = replicate (length ids) 2
                                         lists = map (flip substract outs) ids
                                         outss = map fst $ zipWith3 gen_rand_sublist lists ns gs
+                                        -- outss = replicate (length ids) []
                                         table = replicate (length ids) (head outs, nINF)
+                                        tables = replicate (length ids) table
 
 
 
 gen_agents :: Int -> Int -> ([Human], [Router])
 gen_agents num_humans num_routers  = (humans, routers)
     where
-        max_links = 4   -- max router links
+        max_links = 1   -- max router links
 
-        ids = [0..(num_humans + num_routers)]
+        ids = [0..(num_humans + num_routers-1)]
         h_ids = take num_humans ids
         r_ids = drop num_humans ids
 
         g = R.mkStdGen 0
-        (humans, _) = gen_humans num_humans h_ids r_ids g
-        (routers, _) = gen_routers num_routers r_ids ids max_links g
+        (humans, _) = gen_humans h_ids r_ids g
+        (routers, _) = gen_routers r_ids ids max_links g
 
 

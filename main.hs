@@ -22,83 +22,80 @@ print_message = forever $ do
                 m <- await
                 lift $ print $ m_msg m ++ "    " ++ m_trace m
 
--- sign_message n = forever $ do
---                 delayThread 1
---                 m <- await
---                 yield $ m { m_trace = (m_trace m) ++ "-> " ++ show n }
-
-
-h_service h in_node out_node = runEffect $ get_message h
-                               >-> toOutput out_node
-                               -- >-> send_output
-                               -- recv_input in_node
+sign_message id sym = forever $ do
+                        delayThread 1
+                        m <- await
+                        yield $ m { m_trace = (m_trace m) ++ "->" ++ sym ++ show id }
 
 
 
+h_service h input out_node = do
+                                send_task <- async $ h_send_msg h out_node
+                                recv_task <- async $ h_recv_msg h input
+                                wait send_task
 
-r_service r in_nodes out_nodes = runEffect $ fromInput (in_nodes !! 0)
-                                >-> print_message
-                                -- recv_input (in_nodes !! 0)
-                                -- >-> send_output
+
+h_send_msg h out_node = runEffect $ get_message h
+                        >-> sign_message (h_id h) symHuman
+                        >-> toOutput out_node
+
+h_recv_msg h input = runEffect $ fromInput input
+                        >-> sign_message (h_id h) symHuman
+                        >-> print_message
 
 
--- recv_input in_node = forever $ do
---                         m <- await
---                         let
---                             -- out = outputs !! (fst $ table !! (m_dest m))
---                             out = outputs !! 0
---                         lift $ ignore_m $ atomically $ send out m
 
--- ignore_m a = do x<-a
---                 return ()
 
+r_service r input out_nodes = runEffect $ fromInput input
+                                >-> sign_message (r_id r) symRouter
+                                >-> r_route (r_table r) out_nodes
+
+
+r_route table out_nodes = forever $ do
+                            m <- await
+                            let
+                               out = get_node out_nodes $ table !! m_dest m
+                            lift $ ignore_m $ atomically $ send out m
+
+get_node nodes id = snd $ head $ filter (\(id, pipe) -> id==id) nodes
+
+
+
+ignore_m a = do x<-a
+                return ()
 
 
 main = do
     let
         writer = fst
         reader = snd
-        num_humans = 1
-        num_routers = 1
+        num_humans = 3
+        num_routers = 2
         num = num_humans + num_routers
         (humans, routers) = gen_agents num_humans num_routers
 
-    -- print $ map h_out humans
-    -- print $ map h_out humans
-
-
-    let
         ids = [0..(num_humans + num_routers-1)]
         h_ids = take num_humans ids
         r_ids = drop num_humans ids
 
-    print $ h_ids
-    print $ r_ids
-
-    print $ map h_out humans
-    print $ map r_outs routers
 
     pipes <- sequence $ map (\_ -> spawn unbounded) [0..(num-1)]
 
     let
+        -- ff = zip ids ((map (\a -> [a]) $ map h_out humans) ++ (map r_outs routers) )
+
         h_readers = [ reader $ pipes !! i | i <- h_ids ]
-        h_writers = [ writer $ pipes !! (h_out (humans !! i)) | i <- h_ids ]
+        h_writers = [ writer $ pipes !! (h_out h) | h <- humans ]
 
-        ff = zip ids ((map (\a -> [a]) $ map h_out humans) ++ (map r_outs routers) )
-        r_inputs = [ map fst $ filter (\(_,y) -> elem x y ) ff | x <- r_ids ]
-        r_outputs = map r_outs routers
+        r_readers = [ reader $ pipes !! i | i <- r_ids ]
+        -- r_writers = [ [ writer $ pipes !! i | i <- outs ] | outs <- (map r_outs routers) ]
+        r_writers = [ [ (i, writer $ pipes !! i) | i <- outs ] | outs <- (map r_outs routers) ]
 
-        r_readers = [ [ reader $ pipes !! j | j <- friends ] | friends <- r_inputs ]
-        r_writers = [ [ writer $ pipes !! j | j <- friends ] | friends <- r_outputs ]
-
-
+    print $ ""
     print $ map h_id humans
     print $ map h_out humans
     print $ map r_id routers
     print $ map r_outs routers
-    print $ r_inputs
-    print $ r_outputs
-
 
     h_tasks <- sequence $ [async $ task | task <- zipWith3 h_service humans h_readers h_writers ]
     r_tasks <- sequence $ [async $ task | task <- zipWith3 r_service routers r_readers r_writers ]
