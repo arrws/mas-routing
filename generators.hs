@@ -19,60 +19,77 @@ data Message = Message { m_msg      :: [Char]
                        , m_dest     :: Int
                        }
 
+nINF = 9999
 
 gen_rand_num :: Int -> Int -> R.StdGen -> (Int, R.StdGen)
-gen_rand_num x y g = R.randomR (x, y-1) g
+gen_rand_num lower upper g = R.randomR (lower, upper-1) g
 
 gen_rand_elem :: [Int] -> R.StdGen -> (Int, R.StdGen)
 gen_rand_elem l g = (l !! i, g')
                     where (i, g') = gen_rand_num 0 (length l) g
 
 gen_rand_sublist :: [Int] -> Int -> R.StdGen -> ([Int], R.StdGen)
-gen_rand_sublist l max_links g = work l g n
-                       where
-                            (n, _) = gen_rand_num 2 max_links g
-                            work l g 0 = ([], g)
-                            work l g n = (x:l', g'')
-                                where
-                                    (x, g') = gen_rand_elem l g
-                                    (l', g'') = work (substract x l) g' (n-1)
+gen_rand_sublist l 0 g = ([], g)
+gen_rand_sublist l n g = (x:l', g')
+                        where
+                            (x, _) = gen_rand_elem l g
+                            (l', g') = gen_rand_sublist (substract x l) (n-1) g
 
-gen_routers :: Int -> [Int] -> [Int] -> Int -> R.StdGen -> ([Router], R.StdGen)
-gen_routers 0 names l max_links g = ([], g)
-gen_routers n names l max_links g = (Router { r_id = head names
-                                                 , r_outs = rts
-                                                 , r_table = [ (x, 666) | (_, x) <- zip names (cycle rts) ]
-                                                 }
-                                                 :l', g'')
-                                        where
-                                            (rts, g') = gen_rand_sublist (substract (head names) l) max_links g
-                                            (l', g'') = gen_routers (n-1) (tail names) l max_links g'
-
-gen_humans :: Int -> [Int] -> [Int] -> R.StdGen -> ([Human], R.StdGen)
-gen_humans 0 names l g = ([], g)
-gen_humans n names l g = (Human { h_id = head names
-                                     , h_out = hts
-                                     , h_rate = delay
-                                     }
-                                     :l', g'')
-                            where
-                                (hts, g') = gen_rand_elem (substract (head names) l) g
-                                (delay, _) = gen_rand_num 0 5 g
-                                (l', g'') = gen_humans (n-1) (tail names) l g'
 
 substract x l = filter (/=x) l
+
+gen_generators :: Int -> R.StdGen -> [R.StdGen]
+gen_generators 0 g = []
+gen_generators n g = g':gen_generators (n-1) g'
+                    where
+                        (_, g') = R.randomR (2,4) g :: (Integer, R.StdGen)
+gen_generators _ g = [g]
+
+
+make_router :: Int -> [Int] -> [(Int,Int)] -> Router
+make_router id outs table = Router { r_id = id
+                                   , r_outs = outs
+                                   , r_table = table
+                                   }
+
+make_human :: Int -> Int -> Int -> Human
+make_human id out r = Human { h_id = id
+                            , h_out = out
+                            , h_rate = r
+                            }
+
+
+gen_humans :: Int -> [Int] -> [Int] -> R.StdGen -> ([Human], R.StdGen)
+gen_humans n ids outs g = (zipWith3 make_human ids outss rates, g)
+                        where
+                            gs = gen_generators (length ids) g
+                            lists = map (flip substract outs) ids
+                            outss = map fst $ zipWith gen_rand_elem lists gs
+                            rates = map (fst . gen_rand_num 0 5) gs
+
+
+gen_routers :: Int -> [Int] -> [Int] -> Int -> R.StdGen -> ([Router], R.StdGen)
+gen_routers 0 ids outs max_links g = (zipWith3 make_router ids outss (repeat table), g)
+                                    where
+                                        gs = gen_generators (length ids) g
+                                        ns = map (fst . gen_rand_num 1 max_links) gs
+                                        lists = map (flip substract outs) ids
+                                        outss = map fst $ zipWith3 gen_rand_sublist lists ns gs
+                                        table = replicate (length ids) (head outs, nINF)
+
+
 
 gen_agents :: Int -> Int -> ([Human], [Router])
 gen_agents num_humans num_routers  = (humans, routers)
     where
         max_links = 4   -- max router links
 
-        names = [0..(num_humans + num_routers-1)]
-        h_names = take num_humans names
-        r_names = drop num_humans names
+        ids = [0..(num_humans + num_routers)]
+        h_ids = take num_humans ids
+        r_ids = drop num_humans ids
 
         g = R.mkStdGen 0
-        (humans, _) = gen_humans num_humans h_names r_names g
-        (routers, _) = gen_routers num_routers r_names names max_links g
+        (humans, _) = gen_humans num_humans h_ids r_ids g
+        (routers, _) = gen_routers num_routers r_ids ids max_links g
 
 
