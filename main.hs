@@ -109,11 +109,6 @@ return_min_dist (n1,d1) (n2,d2)
                                 | d1 < d2   = (n1, d1)
                                 | otherwise   = (n2, d2)
 
--- improve_table new_table table = table
-
-
-
-
 
 
 ignore_m a = do x<-a
