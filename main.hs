@@ -13,7 +13,7 @@ delayThread t = lift $ threadDelay (t * 100000)
 
 get_message h = forever $ do
                 delayThread (h_rate h)
-                let m = Message { m_msg = "swap dis naw" , m_trace = "|", m_dest = (rem (h_rate h) 5)}
+                let m = Ping { m_msg = "swap dis naw" , m_trace = "|", m_dest = (rem (h_rate h) 5)}
                 yield m
 
 
@@ -54,8 +54,34 @@ r_service r input out_nodes = runEffect $ fromInput input
 r_route table out_nodes = forever $ do
                             m <- await
                             let
+                               (_, out_id, table) = r_compute m table
+                               -- out = get_node out_nodes out_id
                                out = get_node out_nodes $ table !! m_dest m
                             lift $ ignore_m $ atomically $ send out m
+
+r_compute :: Message -> [(Int, Int)] -> (Message, (Int, Int), [(Int, Int)])
+r_compute Ping { m_msg = msg
+               , m_trace = trace
+               , m_dest = dest
+                }
+                table = (Ping { m_msg = msg
+                              , m_trace = trace
+                              , m_dest = dest
+                              }
+                        , table !! dest
+                        , table)
+
+r_compute Routing { n_table = new_table
+                  , n_source = s
+                  }
+                table = (Routing { n_table = improve_table new_table table
+                                 , n_source = s
+                                 }
+                        , table !! 1
+                        , table)
+
+-- improve_table new_table table = map (\((n1,d1), (n1,d1)) -> )zip new_table table
+improve_table new_table table = table
 
 get_node nodes id = snd $ head $ filter (\(id, pipe) -> id==id) nodes
 

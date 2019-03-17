@@ -8,16 +8,23 @@ data Human = Human { h_id   :: Int
                    , h_out  :: Int
                    , h_rate :: Int
                    }
+                   deriving (Eq, Show)
 
 data Router = Router    { r_id      :: Int
                         , r_outs    :: [Int]
                         , r_table   :: [(Int, Int)]
                         }
+                        deriving (Eq, Show)
 
-data Message = Message { m_msg      :: [Char]
-                       , m_trace    :: [Char]
-                       , m_dest     :: Int
-                       }
+data Message = Routing  { n_table   :: [(Int, Int)]
+                        , n_source  :: Int
+                        }
+             | Ping     { m_msg     :: [Char]
+                        , m_trace   :: [Char]
+                        , m_dest    :: Int
+                        }
+            deriving (Eq, Show)
+
 
 symHuman = " |"
 symRouter = " "
@@ -41,13 +48,6 @@ gen_rand_sublist l n g = (x:l', g')
 
 substract x l = filter (/=x) l
 
-gen_generators :: Int -> R.StdGen -> [R.StdGen]
-gen_generators 0 _ = []
-gen_generators n g = g':gen_generators (n-1) g'
-                    where
-                        (_, g') = R.randomR (2,4) g :: (Integer, R.StdGen)
-gen_generators _ _ = []
-
 
 make_router :: Int -> [Int] -> [(Int,Int)] -> Router
 make_router id outs table = Router { r_id = id
@@ -61,42 +61,37 @@ make_human id out r = Human { h_id = id
                             , h_rate = r
                             }
 
+mapr :: ((a, R.StdGen) -> (b, R.StdGen)) -> [a] -> R.StdGen -> ([b], R.StdGen)
+mapr f list g = foldr (\e (acc, g) -> let (e', g') = f (e, g)
+                                      in (e':acc, g')) ([], g) list
 
 gen_humans :: [Int] -> [Int] -> R.StdGen -> ([Human], R.StdGen)
-gen_humans ids outs g = (zipWith3 make_human ids outss rates, last gs)
+gen_humans ids outs g = (zipWith3 make_human ids outss rates, g'')
                         where
-                            gs = gen_generators (length ids) g
                             lists = map (flip substract outs) ids
-                            outss = map fst $ zipWith gen_rand_elem lists gs
-                            rates = map (fst . gen_rand_num 0 5) gs
+                            (outss, g') = mapr (\(e, g) -> gen_rand_elem e g) lists g
+                            (rates, g'') = mapr (\(_, g) -> gen_rand_num 0 5 g) ids g'
 
 
 gen_routers :: [Int] -> [Int] -> Int -> R.StdGen -> ([Router], R.StdGen)
-gen_routers ids outs max_links g = (zipWith3 make_router ids outss tables, last gs)
--- gen_routers ids outs max_links g = ([], last gs)
+gen_routers ids outs nlinks g = (zipWith3 make_router ids outss tables, g')
                                     where
-                                        gs = gen_generators (length ids) g
-                                        ns = map (fst . gen_rand_num 1 max_links) gs
-                                        -- ns = replicate (length ids) 2
+                                        tables = replicate (length ids) $ replicate (length ids) (head outs, nINF)
                                         lists = map (flip substract outs) ids
-                                        outss = map fst $ zipWith3 gen_rand_sublist lists ns gs
-                                        -- outss = replicate (length ids) []
-                                        table = replicate (length ids) (head outs, nINF)
-                                        tables = replicate (length ids) table
-
+                                        (outss, g') = mapr (\(e, g) -> gen_rand_sublist e nlinks g) lists g
 
 
 gen_agents :: Int -> Int -> ([Human], [Router])
 gen_agents num_humans num_routers  = (humans, routers)
     where
-        max_links = 1   -- max router links
+        nlinks = 2
 
         ids = [0..(num_humans + num_routers-1)]
         h_ids = take num_humans ids
         r_ids = drop num_humans ids
 
-        g = R.mkStdGen 0
+        g = R.mkStdGen 2
         (humans, _) = gen_humans h_ids r_ids g
-        (routers, _) = gen_routers r_ids ids max_links g
+        (routers, _) = gen_routers r_ids ids nlinks g
 
 
