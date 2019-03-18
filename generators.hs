@@ -2,6 +2,7 @@ module Generators where
 
 import qualified System.Random as R
 import Control.Monad
+import Data.List
 
 
 data Human = Human { h_id   :: Int
@@ -10,21 +11,24 @@ data Human = Human { h_id   :: Int
                    }
                    deriving (Eq, Show)
 
+
+
 data Router = Router    { r_id      :: Int
                         , r_outs    :: [Int]
                         , r_table   :: [(Int, Int)]
                         }
                         deriving (Eq, Show)
 
-data Message = Routing  { n_table   :: [(Int, Int)]
+data Message' = Routing  { n_table   :: [(Int, Int)]
                         , n_source  :: Int
+                        , n_trace   :: [Char]
                         }
              | Ping     { m_msg     :: [Char]
-                        , m_trace   :: [Char]
                         , m_dest    :: Int
                         }
             deriving (Eq, Show)
 
+-- data Message = Message {  } 
 
 symHuman = " |"
 symRouter = " "
@@ -76,21 +80,46 @@ gen_humans ids outs g = (zipWith3 make_human ids outss rates, g'')
 gen_routers :: [Int] -> [Int] -> Int -> R.StdGen -> ([Router], R.StdGen)
 gen_routers ids outs nlinks g = (zipWith3 make_router ids outss tables, g')
                                     where
-                                        tables = replicate (length ids) $ replicate (length ids) (head outs, nINF)
-                                        lists = map (flip substract outs) ids
-                                        (outss, g') = mapr (\(e, g) -> gen_rand_sublist e nlinks g) lists g
+                                        -- lists = map (flip substract outs) ids
+
+                                        (_links, g') = mapr (\(_, g) -> gen_rand_sublist ids 2 g) [0..nlinks] g
+
+                                        num = length outs
+                                        num_r = length ids
+                                        num_h = num - num_r
+                                        links = concat [_links, [ [e, l] | (e, l) <- zip [0..num_h-1] $ [num_h..num]++[num_h..num] ]]
+
+                                        llinks = map (nub . concat . (flip  filter) links . elem) outs
+                                        outss = lastN (length ids) $ zipWith substract outs llinks
+
+
+                                        -- tables = replicate (length outs) $ replicate (length outs) (head outs, nINF)
+                                        tables = zipWith init_table (repeat $ length outs) outss
+
+
+init_table :: Int -> [Int] -> [(Int, Int)]
+init_table l out = map (f out) [0..l]
+
+f :: [Int] -> Int -> (Int, Int)
+f x i
+    | elem i x  = (i, 1)
+    | otherwise = (x!!0, nINF)
+
+
+lastN :: Int -> [a] -> [a]
+lastN n xs = drop (length xs - n) xs
 
 
 gen_agents :: Int -> Int -> ([Human], [Router])
 gen_agents num_humans num_routers  = (humans, routers)
     where
-        nlinks = 2
+        nlinks = 3
 
         ids = [0..(num_humans + num_routers-1)]
         h_ids = take num_humans ids
         r_ids = drop num_humans ids
 
-        g = R.mkStdGen 2
+        g = R.mkStdGen 3
         (humans, _) = gen_humans h_ids r_ids g
         (routers, _) = gen_routers r_ids ids nlinks g
 
