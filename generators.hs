@@ -11,8 +11,6 @@ data Human = Human { h_id   :: Int
                    }
                    deriving (Eq, Show)
 
-
-
 data Router = Router    { r_id      :: Int
                         , r_outs    :: [Int]
                         , r_table   :: [(Int, Int)]
@@ -21,14 +19,16 @@ data Router = Router    { r_id      :: Int
 
 data Message' = Routing  { n_table   :: [(Int, Int)]
                         , n_source  :: Int
-                        , n_trace   :: [Char]
                         }
              | Ping     { m_msg     :: [Char]
                         , m_dest    :: Int
                         }
             deriving (Eq, Show)
 
--- data Message = Message {  } 
+data Message = Message { msg    :: Message'
+                       , trace  :: [Char]
+                       }
+            deriving (Eq, Show)
 
 symHuman = " |"
 symRouter = " "
@@ -44,10 +44,10 @@ gen_rand_elem l g = (l !! i, g')
 
 gen_rand_sublist :: [Int] -> Int -> R.StdGen -> ([Int], R.StdGen)
 gen_rand_sublist l 0 g = ([], g)
-gen_rand_sublist l n g = (x:l', g')
+gen_rand_sublist l n g = (x:l', g'')
                         where
-                            (x, _) = gen_rand_elem l g
-                            (l', g') = gen_rand_sublist (substract x l) (n-1) g
+                            (x, g') = gen_rand_elem l g
+                            (l', g'') = gen_rand_sublist (substract x l) (n-1) g'
 
 
 substract x l = filter (/=x) l
@@ -70,31 +70,34 @@ mapr f list g = foldr (\e (acc, g) -> let (e', g') = f (e, g)
                                       in (e':acc, g')) ([], g) list
 
 gen_humans :: [Int] -> [Int] -> R.StdGen -> ([Human], R.StdGen)
-gen_humans ids outs g = (zipWith3 make_human ids outss rates, g'')
+gen_humans h_ids r_ids g = (zipWith3 make_human h_ids links rates, g'')
                         where
-                            lists = map (flip substract outs) ids
-                            (outss, g') = mapr (\(e, g) -> gen_rand_elem e g) lists g
-                            (rates, g'') = mapr (\(_, g) -> gen_rand_num 0 5 g) ids g'
+                            lists = map (flip substract r_ids) h_ids
+                            (links, g') = mapr (\(e, g) -> gen_rand_elem e g) lists g
+                            (rates, g'') = mapr (\(_, g) -> gen_rand_num 0 5 g) h_ids g'
 
 
-gen_routers :: [Int] -> [Int] -> Int -> R.StdGen -> ([Router], R.StdGen)
-gen_routers ids outs nlinks g = (zipWith3 make_router ids outss tables, g')
+gen_routers :: [Int] -> [[Int]] -> R.StdGen -> ([Router], R.StdGen)
+gen_routers r_ids links g = (zipWith3 make_router r_ids links tables, g)
                                     where
-                                        -- lists = map (flip substract outs) ids
-
-                                        (_links, g') = mapr (\(_, g) -> gen_rand_sublist ids 2 g) [0..nlinks] g
-
-                                        num = length outs
-                                        num_r = length ids
-                                        num_h = num - num_r
-                                        links = concat [_links, [ [e, l] | (e, l) <- zip [0..num_h-1] $ [num_h..num]++[num_h..num] ]]
-
-                                        llinks = map (nub . concat . (flip  filter) links . elem) outs
-                                        outss = lastN (length ids) $ zipWith substract outs llinks
+                                        tables = zipWith init_table (repeat $ (length links -1)) links
 
 
-                                        -- tables = replicate (length outs) $ replicate (length outs) (head outs, nINF)
-                                        tables = zipWith init_table (repeat $ length outs) outss
+gen_links :: Int -> [Int] -> [Int] -> R.StdGen -> ([[Int]], R.StdGen)
+gen_links nlinks h_ids r_ids g = (outs, g')
+                                    where
+                                        ids = h_ids ++ r_ids
+                                        (r_links, g') = mapr (\(_, _g) -> gen_rand_sublist r_ids 2 _g) [0..nlinks] g
+                                        h_links = [ [e, l] | (e, l) <- zip h_ids $ cycle r_ids ]
+                                        rr_links = [ [e, l] | (e, l) <- zip (tail r_ids ++ [head r_ids]) $ cycle r_ids ]
+
+                                        links = h_links ++ r_links ++ rr_links
+
+                                        -- g' = g
+                                        -- links = h_links ++ rr_links
+
+                                        llinks = map (nub . concat . (flip  filter) links . elem) ids
+                                        outs = drop (length h_ids) $ zipWith substract ids llinks
 
 
 init_table :: Int -> [Int] -> [(Int, Int)]
@@ -103,24 +106,25 @@ init_table l out = map (f out) [0..l]
 f :: [Int] -> Int -> (Int, Int)
 f x i
     | elem i x  = (i, 1)
-    | otherwise = (x!!0, nINF)
+    | otherwise = (last x, nINF)
 
 
 lastN :: Int -> [a] -> [a]
 lastN n xs = drop (length xs - n) xs
 
+gimme_seed = R.mkStdGen 0
 
 gen_agents :: Int -> Int -> ([Human], [Router])
 gen_agents num_humans num_routers  = (humans, routers)
     where
-        nlinks = 3
+        nlinks = 5
 
         ids = [0..(num_humans + num_routers-1)]
         h_ids = take num_humans ids
         r_ids = drop num_humans ids
 
-        g = R.mkStdGen 3
+        g = gimme_seed
+        (links, _) = gen_links nlinks h_ids r_ids g
         (humans, _) = gen_humans h_ids r_ids g
-        (routers, _) = gen_routers r_ids ids nlinks g
-
+        (routers, _) = gen_routers r_ids links g
 
