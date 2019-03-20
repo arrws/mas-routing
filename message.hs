@@ -19,10 +19,11 @@ gen_message h = forever $ do
                                 }
                 yield m
 
+print_message :: Proxy () Message y y' IO b
 print_message = forever $ do
                 delayThread 1
                 m <- await
-                -- lift $ print $ m_msg m ++ "    " ++ m_trace m
+                -- lift $ print $ trace m
                 lift $ print $ show m
 
 sign_message id = forever $ do
@@ -33,4 +34,7 @@ sign_message id = forever $ do
 
 send_message out m = lift $ ignore_m $ atomically $ send out m
 
+
+ignore_m a = do x<-a
+                return ()
 

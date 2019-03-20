@@ -117,7 +117,7 @@ gimme_seed = R.mkStdGen 0
 gen_agents :: Int -> Int -> ([Human], [Router])
 gen_agents num_humans num_routers  = (humans, routers)
     where
-        nlinks = 5
+        nlinks = 8
 
         ids = [0..(num_humans + num_routers-1)]
         h_ids = take num_humans ids

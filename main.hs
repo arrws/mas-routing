@@ -14,8 +14,8 @@ main = do
     let
         writer = fst
         reader = snd
-        num_humans = 2
-        num_routers = 10
+        num_humans = 3
+        num_routers = 5
         num = num_humans + num_routers
         (humans, routers) = gen_agents num_humans num_routers
 

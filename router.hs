@@ -40,9 +40,8 @@ r_route r out_nodes = do
                         m <- await
                         let
                            (m', outs_ids, table) = r_compute (msg m) r
-                           r' = Router { r_id = r_id r
-                                      , r_outs = r_outs r
-                                      , r_table = table }
+
+                           r' = r { r_table = table }
 
                            m'' = Message { msg = m', trace = trace m}
 
@@ -52,41 +51,33 @@ r_route r out_nodes = do
 
                         r_route r' out_nodes
 
-
+get_nodes nodes [] table = []
 get_nodes nodes ids table = map ( (get_node nodes) . fst . (table !!) ) ids
 get_node nodes id = snd $ head $ filter (\(id, pipe) -> id==id) nodes
 
 
 send_out [] m = do return ()
 send_out out m = do
+                    delayThread 5
                     send_message (head out) m
                     send_out (tail out) m
 
 
 -- r_compute :: Message' -> Router -> (Message', [Int], [(Int, Int)])
-
-r_compute Ping  { m_msg = msg
-                , m_dest = dest
-                }
-                r = (Ping   { m_msg = msg
-                            , m_dest = dest
-                            }
-                    , [dest]
-                    , r_table r
+r_compute msg@Ping{} r = ( msg
+                        , [m_dest msg]
+                        , r_table r
                     )
 
-r_compute Routing   { n_table = table
-                    , n_source = source
-                    }
-                    r = (Routing    { n_table = new_table
-                                    , n_source = r_id r
-                                    }
+r_compute msg@Routing {} r = (Routing { n_table = new_table
+                                      , n_source = r_id r
+                                      }
                         , r_outs_if_changed
                         , new_table
                         )
                     where
-                        new_table = improve_table source table (r_table r)
-                        r_outs_if_changed = if new_table == table then [] else r_outs r
+                        new_table = improve_table (n_source msg) (n_table msg) (r_table r)
+                        r_outs_if_changed = if new_table == (r_table r) then [] else r_outs r
 
 
 improve_table source t table = zipWith return_min_dist t' table
@@ -98,8 +89,4 @@ return_min_dist (n1,d1) (n2,d2)
                                 | d1 < d2   = (n1, d1)
                                 | otherwise = (n2, d2)
 
-
-
-ignore_m a = do x<-a
-                return ()
 
