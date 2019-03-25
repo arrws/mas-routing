@@ -21,34 +21,25 @@ r_route_task r input out_nodes = runEffect $ fromInput input
                                 >-> sign_message (r_id r)
                                 >-> r_route r out_nodes
 
--- r_service r input out_nodes = runEffect $ broadcast_message r out_nodes
-                                -- >-> fromInput input
-                                -- -- >-> sign_message (r_id r)
-                                -- >-> r_route r out_nodes
-
 r_broadcast_task r out_nodes = runEffect $ broadcast_message r out_nodes
 
 broadcast_message r out_nodes = do
-                let m = Message { msg = Routing {n_table = r_table r, n_source = r_id r}
-                                , trace = "|"
-                                }
-                    outs =  get_nodes out_nodes (r_outs r) (r_table r)
-                send_out outs m
+                                let m = Message { msg = Routing {n_table = r_table r, n_source = r_id r}
+                                                , trace = "|"
+                                                }
+                                    outs =  get_nodes out_nodes (r_outs r) (r_table r)
+                                send_out outs m
 
 
 r_route r out_nodes = do
                         m <- await
                         let
                            (m', outs_ids, table) = r_compute (msg m) r
-
                            r' = r { r_table = table }
-
                            m'' = Message { msg = m', trace = trace m}
-
                            outs =  get_nodes out_nodes outs_ids table
 
                         send_out outs m''
-
                         r_route r' out_nodes
 
 get_nodes nodes [] table = []
@@ -63,30 +54,30 @@ send_out out m = do
                     send_out (tail out) m
 
 
--- r_compute :: Message' -> Router -> (Message', [Int], [(Int, Int)])
+r_compute :: Message' -> Router -> (Message', [Int], [(Int, Int)])
 r_compute msg@Ping{} r = ( msg
-                        , [m_dest msg]
-                        , r_table r
-                    )
+                         , [m_dest msg]
+                         , r_table r
+                         )
 
-r_compute msg@Routing {} r = (Routing { n_table = new_table
-                                      , n_source = r_id r
-                                      }
-                        , r_outs_if_changed
-                        , new_table
-                        )
-                    where
-                        new_table = improve_table (n_source msg) (n_table msg) (r_table r)
-                        r_outs_if_changed = if new_table == (r_table r) then [] else r_outs r
+r_compute msg@Routing {} r = ( Routing { n_table = new_table
+                                       , n_source = r_id r
+                                       }
+                             , r_outs_if_changed
+                             , new_table
+                             )
+                        where
+                            new_table = improve_table (n_source msg) (n_table msg) (r_table r)
+                            r_outs_if_changed = if new_table == (r_table r) then [] else r_outs r
 
 
-improve_table source t table = zipWith return_min_dist t' table
-                                where
-                                    t' = map (\(n, d) -> (source, d+1)) t
+improve_table s dists table = zipWith return_min_dist table table'
+                            where
+                                table' = map (\(n, d) -> (s, d+1)) dists
 
 return_min_dist :: (Int, Int) -> (Int, Int) -> (Int, Int)
 return_min_dist (n1,d1) (n2,d2)
-                                | d1 < d2   = (n1, d1)
-                                | otherwise = (n2, d2)
+                | d1 < d2   = (n1, d1)
+                | otherwise = (n2, d2)
 
 

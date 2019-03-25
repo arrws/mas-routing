@@ -10,18 +10,18 @@ data Human = Human { h_id   :: Int
                    , h_out  :: Int
                    , h_rate :: Int
                    }
-                   deriving (Eq, Show)
+            deriving (Eq, Show)
 
-data Router = Router    { r_id      :: Int
-                        , r_outs    :: [Int]
-                        , r_table   :: [(Int, Int)]
-                        }
-                        deriving (Eq, Show)
+data Router = Router { r_id      :: Int
+                     , r_outs    :: [Int]
+                     , r_table   :: [(Int, Int)]
+                     }
+            deriving (Eq, Show)
 
-data Message' = Routing  { n_table   :: [(Int, Int)]
+data Message' = Routing { n_table   :: [(Int, Int)]
                         , n_source  :: Int
                         }
-             | Ping     { m_msg     :: [Char]
+              | Ping    { m_msg     :: [Char]
                         , m_dest    :: Int
                         }
             deriving (Eq, Show)
@@ -31,14 +31,15 @@ data Message = Message { msg    :: Message'
                        }
             deriving (Eq, Show)
 
+
 symHuman = " |"
 symRouter = " "
 
-nINF = 9999
+nINF = 999
+
 
 gen_rand_num :: Int -> Int -> R.StdGen -> (Int, R.StdGen)
 gen_rand_num lower upper g = R.randomR (lower, upper-1) g
-
 
 gen_rand_elem :: [Int] -> R.StdGen -> (Int, R.StdGen)
 gen_rand_elem l g = (l !! i, g')
@@ -53,78 +54,72 @@ gen_rand_sublist l n g = (x:l', g'')
 
 
 
+build_router :: Int -> [Int] -> [(Int,Int)] -> Router
+build_router id outs table = Router { r_id = id
+                                    , r_outs = outs
+                                    , r_table = table
+                                    }
 
-make_router :: Int -> [Int] -> [(Int,Int)] -> Router
-make_router id outs table = Router { r_id = id
-                                   , r_outs = outs
-                                   , r_table = table
-                                   }
-
-make_human :: Int -> Int -> Int -> Human
-make_human id out r = Human { h_id = id
-                            , h_out = out
-                            , h_rate = r
-                            }
+build_human :: Int -> Int -> Int -> Human
+build_human id out r = Human { h_id = id
+                             , h_out = out
+                             , h_rate = r
+                             }
 
 mapr :: ((a, R.StdGen) -> (b, R.StdGen)) -> [a] -> R.StdGen -> ([b], R.StdGen)
 mapr f list g = foldr (\e (acc, g) -> let (e', g') = f (e, g)
                                       in (e':acc, g')) ([], g) list
 
+
 gen_humans :: [Int] -> [Int] -> R.StdGen -> ([Human], R.StdGen)
-gen_humans h_ids links g = (zipWith3 make_human h_ids links rates, g')
+gen_humans h_ids links g = (zipWith3 build_human h_ids links rates, g')
                             where
                                 (rates, g') = mapr (\(_, g) -> gen_rand_num 0 5 g) h_ids g
 
 
 gen_routers :: [Int] -> [[Int]] -> R.StdGen -> ([Router], R.StdGen)
-gen_routers r_ids links g = (zipWith3 make_router r_ids links tables, g)
+gen_routers r_ids links g = (zipWith3 build_router r_ids links tables, g)
                             where
-                                tables = zipWith init_table (repeat $ (length links -1)) links
+                                tables = zipWith init_table (repeat $ last r_ids) links -- last r_ids ~ num_agents
 
+init_table :: Int -> [Int] -> [(Int, Int)]
+init_table n links = map (fn links) [0..n]
+                where
+                    fn :: [Int] -> Int -> (Int, Int)
+                    fn x i
+                        | elem i x  = (i, 1)
+                        | otherwise = (last x, nINF) -- default route
 
 gen_links :: Int -> [Int] -> [Int] -> R.StdGen -> ([Int], [[Int]], R.StdGen)
 gen_links nlinks h_ids r_ids g = (h_links_out, r_links, g')
                                     where
-
-                                        (h_con, g') = mapr (\(id, g) -> gen_rand_sublist r_ids 2 g) h_ids g
-                                        h_links_out = map (!! 0) h_con
-                                        h_links_in = map (!! 1) h_con
+                                        (h_links_out, g') = mapr (\(id, g) -> gen_rand_elem r_ids g) h_ids g
+                                        (h_links_in, g'') = mapr (\(id, g) -> gen_rand_elem r_ids g) h_ids g'
 
                                         base = [[] | _ <- r_ids]
+                                        r_indexes = map index h_links_in
+                                        r_links_to_humans = foldl (\l (x, y) -> insert_into y x l) base $ zip r_indexes h_ids
+                                        r_links_to_routers = foldr add_edges base [0..(length r_ids)-1]
+                                        r_links = zipWith (++) r_links_to_humans r_links_to_routers
 
-                                        gen (-1) ids con = con
-                                        gen i ids con
-                                                | (length $ con !! i) < 2   = gen i ids (add_link i ids con)
-                                                | otherwise                 = gen (i-1) ids con
-                                                where
-                                                    add_link i ids con = con'
-                                                                        where
-                                                                            id = r_ids !! i
-                                                                            used_nodes = id : (con !! i)
-                                                                            avaible_nodes = substract_all used_nodes r_ids
-                                                                            (new_id, _) = gen_rand_elem avaible_nodes gimme_seed
-                                                                            new_i = get_pos new_id r_ids
-                                                                            con' = insertin id new_i $ insertin new_id i con
+                                        index x = x - length h_ids
 
-                                        insertin x i con = take i con ++ [x:(con !! i)] ++ drop (i+1) con
+                                        add_edges i links = f i links (length $ links!!i)
+                                                        where
+                                                            f i links 0 = add_edge i $ add_edge i links
+                                                            f i links 1 = add_edge i links
+                                                            f i links _ = links
 
-                                        vec = zip h_links_in h_ids
+                                        add_edge i links = insert_into e i' $ insert_into e' i links
+                                                        where
+                                                            e = r_ids !! i
+                                                            used_nodes = e:(links!!i)
+                                                            free_nodes = substract_all used_nodes r_ids
+                                                            (e', _) = gen_rand_elem free_nodes gimme_seed
+                                                            i' = index e'
 
-                                        -- ll = foldl (\l (i, x) -> insert x i l) ??? base vec
-                                        ll = f vec
-                                        f [] = base
-                                        f ((x,y):xs) = insertin y (x - length h_ids)  (f xs)
-                                        r_links = zipWith (\x y -> x ++ y) ll $ gen (length r_ids -1) r_ids base
-
-
-get_pos :: Int -> [Int] -> Int
-get_pos x l = get x (length l -1) l
-            where
-                get x (-1) l = -1
-                get x i l
-                            | l !! i == x   = i
-                            | otherwise     = get x (i-1) l
-
+insert_into :: Int -> Int -> [[Int]] -> [[Int]]
+insert_into x i links = take i links ++ [x:(links !! i)] ++ drop (i+1) links
 
 substract :: Int -> [Int]-> [Int]
 substract x l = filter (/=x) l
@@ -132,16 +127,6 @@ substract x l = filter (/=x) l
 substract_all :: [Int] -> [Int]-> [Int]
 substract_all [] l = l
 substract_all (x:xs) l = substract_all xs $ substract x l
-
-
-
-init_table :: Int -> [Int] -> [(Int, Int)]
-init_table l out = map (f out) [0..l]
-
-f :: [Int] -> Int -> (Int, Int)
-f x i
-    | elem i x  = (i, 1)
-    | otherwise = (last x, nINF)
 
 
 gimme_seed = R.mkStdGen 2
