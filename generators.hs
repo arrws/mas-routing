@@ -2,6 +2,7 @@ module Generators where
 
 import qualified System.Random as R
 import Control.Monad
+import Control.Monad.State
 import Data.List
 
 
@@ -38,6 +39,7 @@ nINF = 9999
 gen_rand_num :: Int -> Int -> R.StdGen -> (Int, R.StdGen)
 gen_rand_num lower upper g = R.randomR (lower, upper-1) g
 
+
 gen_rand_elem :: [Int] -> R.StdGen -> (Int, R.StdGen)
 gen_rand_elem l g = (l !! i, g')
                     where (i, g') = gen_rand_num 0 (length l) g
@@ -50,7 +52,6 @@ gen_rand_sublist l n g = (x:l', g'')
                             (l', g'') = gen_rand_sublist (substract x l) (n-1) g'
 
 
-substract x l = filter (/=x) l
 
 
 make_router :: Int -> [Int] -> [(Int,Int)] -> Router
@@ -70,34 +71,68 @@ mapr f list g = foldr (\e (acc, g) -> let (e', g') = f (e, g)
                                       in (e':acc, g')) ([], g) list
 
 gen_humans :: [Int] -> [Int] -> R.StdGen -> ([Human], R.StdGen)
-gen_humans h_ids r_ids g = (zipWith3 make_human h_ids links rates, g'')
-                        where
-                            lists = map (flip substract r_ids) h_ids
-                            (links, g') = mapr (\(e, g) -> gen_rand_elem e g) lists g
-                            (rates, g'') = mapr (\(_, g) -> gen_rand_num 0 5 g) h_ids g'
+gen_humans h_ids links g = (zipWith3 make_human h_ids links rates, g')
+                            where
+                                (rates, g') = mapr (\(_, g) -> gen_rand_num 0 5 g) h_ids g
 
 
 gen_routers :: [Int] -> [[Int]] -> R.StdGen -> ([Router], R.StdGen)
 gen_routers r_ids links g = (zipWith3 make_router r_ids links tables, g)
+                            where
+                                tables = zipWith init_table (repeat $ (length links -1)) links
+
+
+gen_links :: Int -> [Int] -> [Int] -> R.StdGen -> ([Int], [[Int]], R.StdGen)
+gen_links nlinks h_ids r_ids g = (h_links_out, r_links, g')
                                     where
-                                        tables = zipWith init_table (repeat $ (length links -1)) links
+
+                                        (h_con, g') = mapr (\(id, g) -> gen_rand_sublist r_ids 2 g) h_ids g
+                                        h_links_out = map (!! 0) h_con
+                                        h_links_in = map (!! 1) h_con
+
+                                        base = [[] | _ <- r_ids]
+
+                                        gen (-1) ids con = con
+                                        gen i ids con
+                                                | (length $ con !! i) < 2   = gen i ids (add_link i ids con)
+                                                | otherwise                 = gen (i-1) ids con
+                                                where
+                                                    add_link i ids con = con'
+                                                                        where
+                                                                            id = r_ids !! i
+                                                                            used_nodes = id : (con !! i)
+                                                                            avaible_nodes = substract_all used_nodes r_ids
+                                                                            (new_id, _) = gen_rand_elem avaible_nodes gimme_seed
+                                                                            new_i = get_pos new_id r_ids
+                                                                            con' = insertin id new_i $ insertin new_id i con
+
+                                        insertin x i con = take i con ++ [x:(con !! i)] ++ drop (i+1) con
+
+                                        vec = zip h_links_in h_ids
+
+                                        -- ll = foldl (\l (i, x) -> insert x i l) ??? base vec
+                                        ll = f vec
+                                        f [] = base
+                                        f ((x,y):xs) = insertin y (x - length h_ids)  (f xs)
+                                        r_links = zipWith (\x y -> x ++ y) ll $ gen (length r_ids -1) r_ids base
 
 
-gen_links :: Int -> [Int] -> [Int] -> R.StdGen -> ([[Int]], R.StdGen)
-gen_links nlinks h_ids r_ids g = (outs, g')
-                                    where
-                                        ids = h_ids ++ r_ids
-                                        (r_links, g') = mapr (\(_, _g) -> gen_rand_sublist r_ids 2 _g) [0..nlinks] g
-                                        h_links = [ [e, l] | (e, l) <- zip h_ids $ cycle r_ids ]
-                                        rr_links = [ [e, l] | (e, l) <- zip (tail r_ids ++ [head r_ids]) $ cycle r_ids ]
+get_pos :: Int -> [Int] -> Int
+get_pos x l = get x (length l -1) l
+            where
+                get x (-1) l = -1
+                get x i l
+                            | l !! i == x   = i
+                            | otherwise     = get x (i-1) l
 
-                                        links = h_links ++ r_links ++ rr_links
 
-                                        -- g' = g
-                                        -- links = h_links ++ rr_links
+substract :: Int -> [Int]-> [Int]
+substract x l = filter (/=x) l
 
-                                        llinks = map (nub . concat . (flip  filter) links . elem) ids
-                                        outs = drop (length h_ids) $ zipWith substract ids llinks
+substract_all :: [Int] -> [Int]-> [Int]
+substract_all [] l = l
+substract_all (x:xs) l = substract_all xs $ substract x l
+
 
 
 init_table :: Int -> [Int] -> [(Int, Int)]
@@ -109,10 +144,7 @@ f x i
     | otherwise = (last x, nINF)
 
 
-lastN :: Int -> [a] -> [a]
-lastN n xs = drop (length xs - n) xs
-
-gimme_seed = R.mkStdGen 0
+gimme_seed = R.mkStdGen 2
 
 gen_agents :: Int -> Int -> ([Human], [Router])
 gen_agents num_humans num_routers  = (humans, routers)
@@ -124,7 +156,8 @@ gen_agents num_humans num_routers  = (humans, routers)
         r_ids = drop num_humans ids
 
         g = gimme_seed
-        (links, _) = gen_links nlinks h_ids r_ids g
-        (humans, _) = gen_humans h_ids r_ids g
-        (routers, _) = gen_routers r_ids links g
+        (h_links, r_links, _) = gen_links nlinks h_ids r_ids g
+        (humans, _) = gen_humans h_ids h_links g
+        (routers, _) = gen_routers r_ids r_links g
+
 

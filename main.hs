@@ -14,8 +14,8 @@ main = do
     let
         writer = fst
         reader = snd
-        num_humans = 3
-        num_routers = 5
+        num_humans = 5
+        num_routers = 3
         num = num_humans + num_routers
         (humans, routers) = gen_agents num_humans num_routers
 
@@ -33,16 +33,16 @@ main = do
         r_readers = [ reader $ pipes !! i | i <- r_ids ]
         r_writers = [ [ (i, writer $ pipes !! i) | i <- outs ] | outs <- (map r_outs routers) ]
 
-    print $ ""
+    -- print $ ""
     print $ map h_id humans
     print $ map h_out humans
     print $ map r_id routers
     print $ map r_outs routers
-    print $ ""
-    print $ humans
-    print $ ""
-    print $ routers
-    print $ ""
+    -- print $ ""
+    -- print $ humans
+    -- print $ ""
+    -- print $ routers
+    -- print $ ""
 
     h_tasks <- sequence $ [async $ task | task <- zipWith3 h_service humans h_readers h_writers ]
     r_tasks <- sequence $ [async $ task | task <- zipWith3 r_service routers r_readers r_writers ]
