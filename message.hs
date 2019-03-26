@@ -29,13 +29,13 @@ print_message = forever $ do
 
 
 to_str :: Message -> [Char]
-to_str _ = ""
--- to_str Message { msg = Ping {m_msg=msg, m_dest=dest}
---                , trc = trc
---                } = "PING: " ++ msg ++ " to " ++ show(dest) ++ " trc: " ++ trc ++ "\n\n"
--- -- to_str Message { msg = Routing {n_table=table, n_source=source}
--- --                , trc = trc
--- --                } = "ROUTING: from " ++ show(source) ++ " trc: " ++ trc ++ "\n" ++ stringify_table table ++ "\n\n"
+-- to_str _ = ""
+to_str Message { msg = Ping {m_msg=msg, m_dest=dest}
+               , trc = trc
+               } = "PING: " ++ msg ++ " to " ++ show(dest) ++ " trc: " ++ trc ++ "\n\n"
+to_str Message { msg = Routing {n_table=table, n_source=source}
+               , trc = trc
+               } = "ROUTING: from " ++ show(source) ++ " trc: " ++ trc ++ "\n" ++ stringify_table table ++ "\n\n"
 
 stringify_table t = l0 ++ l1 ++ l2
                 where

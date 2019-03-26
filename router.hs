@@ -30,14 +30,14 @@ broadcast_message r out_nodes = do
                                                 }
                                     outs =  get_nodes out_nodes (r_outs r) (r_table r)
 
-                                    outs_ = DB.trace ("BB " ++ (show (length outs)) ++ " " ++ (show r) ++ show m ) outs
+                                    -- outs = DB.trace ("BB " ++ (show (length outs)) ++ " " ++ (show r) ++ show m ) outs
 
-                                send_out outs_ m
+                                send_out outs m
 
 send_out [] m = do return ()
-send_out out m_ = do
-                    let
-                        m = DB.trace ("SEND " ++ show (length out) ++ " " ++ show m_ ) m_
+send_out out m = do
+                    -- let
+                        -- m = DB.trace ("SEND " ++ show (length out) ++ " " ++ show m_ ) m_
                     send_message (head out) m
                     send_out (tail out) m
 
@@ -51,19 +51,16 @@ r_route r out_nodes = do
                            r' = r { r_table = table }
                            m'' = Message { msg = m', trc = trc m}
 
-
                            outs = get_nodes out_nodes outs_ids table
-                           outs_ = DB.trace ("RT " ++ (show (length outs)) ++ " " ++ (show r) ++ show m'' ) outs
+                           -- outs_ = DB.trace ("RT "++ (show (length outs_ids)) ++ " " ++ (show (length outs)) ++ " " ++ (show r) ++ show m ) outs
 
-
-                        send_out outs_ m''
+                        send_out outs m''
                         r_route r' out_nodes
 
 
 get_nodes nodes [] table = []
 get_nodes nodes ids table = map ( (get_node nodes) . fst . (table !!) ) ids
-get_node nodes id = snd $ head $ filter (\(id, pipe) -> id==id) nodes
-
+get_node nodes id' = snd $ head $ filter (\(id, pipe) -> id==id') nodes
 
 
 
