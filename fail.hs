@@ -154,8 +154,6 @@ main = do
         r_reader_pipes = [reader $ pipes !! i | i <- [num_humans..(num-1)]]
         r_writer_pipes = [[writer $ pipes !! j | j <- friends] | friends <- (map r_out routers)]
 
-    -- bad design :(
-
     h_recv_tasks <- sequence $ [async $ task | task <- zipWith h_recv humans h_reader_pipes]
     h_send_tasks <- sequence $ [async $ task | task <- zipWith h_send humans h_writer_pipes]
     r_route_tasks <- sequence $ [async $ task | task <- zipWith3 r_route routers r_reader_pipes r_writer_pipes]

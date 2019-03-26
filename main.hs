@@ -9,19 +9,26 @@ import Control.Concurrent (threadDelay)
 import Generators
 import Human
 import Router
+import Message
 
 main = do
     let
         writer = fst
         reader = snd
-        num_humans = 5
-        num_routers = 20
+
+        (h_links, r_links) = get_config
+
+        num_humans = length h_links
+        num_routers = length r_links
         num = num_humans + num_routers
-        (humans, routers) = gen_agents num_humans num_routers
 
         ids = [0..(num_humans + num_routers-1)]
         h_ids = take num_humans ids
         r_ids = drop num_humans ids
+
+        g = gimme_seed
+        (humans, _) = gen_humans h_ids h_links g
+        (routers, _) = gen_routers r_ids r_links g
 
 
     pipes <- sequence $ map (\_ -> spawn unbounded) [0..(num-1)]
@@ -33,16 +40,12 @@ main = do
         r_readers = [ reader $ pipes !! i | i <- r_ids ]
         r_writers = [ [ (i, writer $ pipes !! i) | i <- outs ] | outs <- (map r_outs routers) ]
 
-    -- print $ ""
     print $ map h_id humans
     print $ map h_out humans
     print $ map r_id routers
     print $ map r_outs routers
-    -- print $ ""
-    -- print $ humans
-    -- print $ ""
-    -- print $ routers
-    -- print $ ""
+    putStr $ foldr (\x b -> b ++ "\n" ++ show x) "" humans
+    putStr $ foldr (\x b -> b ++ "\n" ++ show x ++ "\n" ++ stringify_table (r_table x)) "" routers
 
     h_tasks <- sequence $ [async $ task | task <- zipWith3 h_service humans h_readers h_writers ]
     r_tasks <- sequence $ [async $ task | task <- zipWith3 r_service routers r_readers r_writers ]

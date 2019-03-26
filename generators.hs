@@ -27,7 +27,7 @@ data Message' = Routing { n_table   :: [(Int, Int)]
             deriving (Eq, Show)
 
 data Message = Message { msg    :: Message'
-                       , trace  :: [Char]
+                       , trc  :: [Char]
                        }
             deriving (Eq, Show)
 
@@ -74,7 +74,7 @@ mapr f list g = foldr (\e (acc, g) -> let (e', g') = f (e, g)
 gen_humans :: [Int] -> [Int] -> R.StdGen -> ([Human], R.StdGen)
 gen_humans h_ids links g = (zipWith3 build_human h_ids links rates, g')
                             where
-                                (rates, g') = mapr (\(_, g) -> gen_rand_num 0 5 g) h_ids g
+                                (rates, g') = mapr (\(_, g) -> gen_rand_num 0 9 g) h_ids g
 
 
 gen_routers :: [Int] -> [[Int]] -> R.StdGen -> ([Router], R.StdGen)
@@ -90,14 +90,13 @@ init_table n links = map (fn links) [0..n]
                         | elem i x  = (i, 1)
                         | otherwise = (last x, nINF) -- default route
 
-gen_links :: Int -> [Int] -> [Int] -> R.StdGen -> ([Int], [[Int]], R.StdGen)
-gen_links nlinks h_ids r_ids g = (h_links_out, r_links, g')
+gen_links :: [Int] -> [Int] -> R.StdGen -> ([Int], [[Int]], R.StdGen)
+gen_links h_ids r_ids g = (h_links, r_links, g')
                                     where
-                                        (h_links_out, g') = mapr (\(id, g) -> gen_rand_elem r_ids g) h_ids g
-                                        (h_links_in, g'') = mapr (\(id, g) -> gen_rand_elem r_ids g) h_ids g'
+                                        (h_links, g') = mapr (\(id, g) -> gen_rand_elem r_ids g) h_ids g
 
                                         base = [[] | _ <- r_ids]
-                                        r_indexes = map index h_links_in
+                                        r_indexes = map index h_links
                                         r_links_to_humans = foldr (\(x, y) l-> insert_into y x l) base $ zip r_indexes h_ids
                                         r_links_to_routers = foldr add_edges base [0..(length r_ids)-1]
                                         r_links = zipWith (++) r_links_to_humans r_links_to_routers
@@ -129,20 +128,32 @@ substract_all [] l = l
 substract_all (x:xs) l = substract_all xs $ substract x l
 
 
-gimme_seed = R.mkStdGen 2
+gimme_seed = R.mkStdGen 0
 
-gen_agents :: Int -> Int -> ([Human], [Router])
-gen_agents num_humans num_routers  = (humans, routers)
-    where
-        nlinks = 8
+get_config :: ([Int], [[Int]])
+get_config  = (h_links, r_links)
+            where
+                -- num_humans = 3
+                -- num_routers = 3
+                -- h_ids = take num_humans [0..(num_humans + num_routers-1)]
+                -- r_ids = drop num_humans [0..(num_humans + num_routers-1)]
+                -- g = gimme_seed
+                -- (h_links, r_links, _) = gen_links h_ids r_ids g
 
-        ids = [0..(num_humans + num_routers-1)]
-        h_ids = take num_humans ids
-        r_ids = drop num_humans ids
+                h_links = [2,4]
+                r_links = [ [0,3],
+                            [2,4],
+                            [1,3]
+                          ]
 
-        g = gimme_seed
-        (h_links, r_links, _) = gen_links nlinks h_ids r_ids g
-        (humans, _) = gen_humans h_ids h_links g
-        (routers, _) = gen_routers r_ids r_links g
+                -- --         0, 1, 2, 3, 4, 5, ...
+                -- h_links = [3, 7, 8]
+                -- r_links = [ [4, 5, 0] -- 3
+                --           , [3, 6] -- 4
+                --           , [3, 7, 8] -- 5
+                --           , [4, 7] -- 6
+                --           , [5, 6, 8, 1] -- 7
+                --           , [7, 5, 2] -- 8
+                --           ]
 
 
