@@ -15,7 +15,7 @@ main = do
         writer = fst
         reader = snd
         num_humans = 5
-        num_routers = 3
+        num_routers = 20
         num = num_humans + num_routers
         (humans, routers) = gen_agents num_humans num_routers
 

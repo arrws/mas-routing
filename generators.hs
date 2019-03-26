@@ -98,7 +98,7 @@ gen_links nlinks h_ids r_ids g = (h_links_out, r_links, g')
 
                                         base = [[] | _ <- r_ids]
                                         r_indexes = map index h_links_in
-                                        r_links_to_humans = foldl (\l (x, y) -> insert_into y x l) base $ zip r_indexes h_ids
+                                        r_links_to_humans = foldr (\(x, y) l-> insert_into y x l) base $ zip r_indexes h_ids
                                         r_links_to_routers = foldr add_edges base [0..(length r_ids)-1]
                                         r_links = zipWith (++) r_links_to_humans r_links_to_routers
 
