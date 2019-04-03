@@ -16,19 +16,18 @@ main = do
         writer = fst
         reader = snd
 
-        (h_links, r_links) = get_config
-
-        num_humans = length h_links
-        num_routers = length r_links
+        num_humans = 3
+        num_routers = 8
         num = num_humans + num_routers
 
         ids = [0..(num_humans + num_routers-1)]
         h_ids = take num_humans ids
         r_ids = drop num_humans ids
 
-        g = gimme_seed
-        (humans, _) = gen_humans h_ids h_links g
-        (routers, _) = gen_routers r_ids r_links g
+        (h_links, r_links) = gen_links h_ids r_ids
+        humans = gen_humans h_ids h_links
+        routers = gen_routers r_ids r_links
+
 
 
     pipes <- sequence $ map (\_ -> spawn unbounded) [0..(num-1)]
