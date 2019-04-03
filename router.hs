@@ -25,6 +25,7 @@ r_route_task r input out_nodes = runEffect $ fromInput input
 r_broadcast_task r out_nodes = runEffect $ broadcast_message r out_nodes
 
 broadcast_message r out_nodes = do
+                                delayThread 5
                                 let m = Message { msg = Routing {n_table = r_table r, n_source = r_id r}
                                                 , trc = (show (r_id r)) ++ "|"
                                                 }
@@ -44,7 +45,7 @@ send_out out m = do
 
 r_route r out_nodes = do
                         m <- await
-                        delayThread 2
+                        delayThread 1
                         let
                            (m', outs_ids, table) = r_compute (msg m) r
 

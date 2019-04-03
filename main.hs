@@ -43,8 +43,8 @@ main = do
     print $ map h_out humans
     print $ map r_id routers
     print $ map r_outs routers
-    putStr $ foldr (\x b -> b ++ "\n" ++ show x) "" humans
-    putStr $ foldr (\x b -> b ++ "\n" ++ show x ++ "\n" ++ stringify_table (r_table x)) "" routers
+    -- putStr $ foldr (\x b -> b ++ "\n" ++ show x) "" humans
+    -- putStr $ foldr (\x b -> b ++ "\n" ++ show x ++ "\n" ++ stringify_table (r_table x)) "" routers
 
     h_tasks <- sequence $ [async $ task | task <- zipWith3 h_service humans h_readers h_writers ]
     r_tasks <- sequence $ [async $ task | task <- zipWith3 r_service routers r_readers r_writers ]
