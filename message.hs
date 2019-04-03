@@ -51,10 +51,6 @@ sign_message id = forever $ do
                         let m' = Message { msg = msg m, trc = (trc m) ++ "->" ++ show id }
                         yield $ m'
 
-send_message out m = lift $ ignore_m $ atomically $ send out m
-
-
-ignore_m a = do x<-a
-                return ()
+send_message out m = lift $ void $ atomically $ send out m
 
 

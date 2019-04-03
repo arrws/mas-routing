@@ -16,8 +16,8 @@ main = do
         writer = fst
         reader = snd
 
-        num_humans = 3
-        num_routers = 8
+        num_humans = 8
+        num_routers = 20
         num = num_humans + num_routers
 
         ids = [0..(num_humans + num_routers-1)]
@@ -30,7 +30,7 @@ main = do
 
 
 
-    pipes <- sequence $ map (\_ -> spawn unbounded) [0..(num-1)]
+    pipes <- replicateM num $ spawn unbounded
 
     let
         h_readers = [ reader $ pipes !! i | i <- h_ids ]

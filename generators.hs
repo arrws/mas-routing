@@ -70,7 +70,7 @@ build_human id out r = Human { h_id = id
 gen_humans :: [Int] -> [Int] -> [Human]
 gen_humans h_ids links = zipWith3 build_human h_ids links rates
                             where
-                                rates = evalState (replicateM (length h_ids) (gen_rand_num 1 3)) gimme_seed
+                                rates = evalState (replicateM (length h_ids) (gen_rand_num 1 1)) gimme_seed
 
 gen_routers :: [Int] -> [[Int]] -> [Router]
 gen_routers r_ids links = (zipWith3 build_router r_ids links tables)

@@ -30,22 +30,16 @@ broadcast_message r out_nodes = do
                                                 , trc = (show (r_id r)) ++ "|"
                                                 }
                                     outs =  get_nodes out_nodes (r_outs r) (r_table r)
-
                                     -- outs = DB.trace ("BB " ++ (show (length outs)) ++ " " ++ (show r) ++ show m ) outs
 
                                 send_out outs m
 
-send_out [] m = do return ()
-send_out out m = do
-                    -- let
-                        -- m = DB.trace ("SEND " ++ show (length out) ++ " " ++ show m_ ) m_
-                    send_message (head out) m
-                    send_out (tail out) m
+
+send_out outs m =  mapM_ (flip send_message m) outs
 
 
 r_route r out_nodes = do
                         m <- await
-                        delayThread 1
                         let
                            (m', outs_ids, table) = r_compute (msg m) r
 
@@ -56,6 +50,7 @@ r_route r out_nodes = do
                            -- outs_ = DB.trace ("RT "++ (show (length outs_ids)) ++ " " ++ (show (length outs)) ++ " " ++ (show r) ++ show m ) outs
 
                         send_out outs m''
+
                         r_route r' out_nodes
 
 
@@ -88,7 +83,7 @@ improve_table s dists table = zipWith return_min_dist table table'
 
 return_min_dist :: (Int, Int) -> (Int, Int) -> (Int, Int)
 return_min_dist (n1,d1) (n2,d2)
-                | d1 < d2   = (n1, d1)
-                | otherwise = (n2, d2)
+                | d1 > d2   = (n2, d2)
+                | otherwise = (n1, d1)
 
 
