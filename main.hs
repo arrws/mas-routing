@@ -16,8 +16,8 @@ main = do
         writer = fst
         reader = snd
 
-        num_humans = 8
-        num_routers = 20
+        num_humans = 6
+        num_routers = 19
         num = num_humans + num_routers
 
         ids = [0..(num_humans + num_routers-1)]

@@ -7,6 +7,7 @@ import qualified System.Random as R
 import Control.Monad
 import Control.Concurrent.Async
 import Control.Concurrent (threadDelay)
+import Control.Monad.Writer
 
 import Generators
 import Message
@@ -19,62 +20,48 @@ r_service r input out_nodes = do
                                 wait route_task
 
 r_route_task r input out_nodes = runEffect $ fromInput input
-                                >-> sign_message (r_id r)
                                 >-> r_route r out_nodes
 
 r_broadcast_task r out_nodes = runEffect $ broadcast_message r out_nodes
-
-broadcast_message r out_nodes = do
-                                delayThread 5
-                                let m = Message { msg = Routing {n_table = r_table r, n_source = r_id r}
-                                                , trc = (show (r_id r)) ++ "|"
-                                                }
-                                    outs =  get_nodes out_nodes (r_outs r) (r_table r)
-                                    -- outs = DB.trace ("BB " ++ (show (length outs)) ++ " " ++ (show r) ++ show m ) outs
-
-                                send_out outs m
-
-
-send_out outs m =  mapM_ (flip send_message m) outs
-
-
-r_route r out_nodes = do
-                        m <- await
-                        let
-                           (m', outs_ids, table) = r_compute (msg m) r
-
-                           r' = r { r_table = table }
-                           m'' = Message { msg = m', trc = trc m}
-
-                           outs = get_nodes out_nodes outs_ids table
-                           -- outs_ = DB.trace ("RT "++ (show (length outs_ids)) ++ " " ++ (show (length outs)) ++ " " ++ (show r) ++ show m ) outs
-
-                        send_out outs m''
-
-                        r_route r' out_nodes
 
 
 get_nodes nodes [] table = []
 get_nodes nodes ids table = map ( (get_node nodes) . fst . (table !!) ) ids
 get_node nodes id' = snd $ head $ filter (\(id, pipe) -> id==id') nodes
 
+send_out :: (Monad (t IO), MonadTrans t) => [Output WMessage] -> WMessage -> t IO ()
+send_out outs m = mapM_ (flip send_message m) outs
 
 
-r_compute :: Message' -> Router -> (Message', [Int], [(Int, Int)])
-r_compute msg@Ping{} r = ( msg
-                         , [m_dest msg]
-                         , r_table r
-                         )
+broadcast_message :: (Monad (t IO), MonadTrans t) => Router -> [(Int, Output WMessage)] -> t IO ()
+broadcast_message r out_nodes = do
+                                delayThread 5
+                                let msg = Routing {n_table = r_table r, n_source = r_id r}
+                                    m = sign_message msg (r_id r) msg
+                                    -- outs = DB.trace ("broadcast " ++ show (evalWriter m) ++ "    ") get_nodes out_nodes (r_outs r) (r_table r)
+                                    outs = get_nodes out_nodes (r_outs r) (r_table r)
+                                send_out outs m
 
-r_compute msg@Routing {} r = ( Routing { n_table = new_table
-                                       , n_source = r_id r
-                                       }
-                             , r_outs_if_changed
-                             , new_table
-                             )
-                        where
-                            new_table = improve_table (n_source msg) (n_table msg) (r_table r)
-                            r_outs_if_changed = if new_table == (r_table r) then [] else r_outs r
+
+r_route :: Router -> [(Int, Output WMessage)] -> Proxy () WMessage y' y IO b
+r_route r out_nodes = do
+                        delayThread 1
+                        m <- await
+                        let (r', msg, next_ids) = process r (evalWriter m)
+                            m' = m >>= (sign_message msg (r_id r))
+                            next_nodes = get_nodes out_nodes next_ids (r_table r')
+                        send_out next_nodes m'
+                        r_route r' out_nodes
+
+
+process :: Router -> Message -> (Router, Message, [Int])
+process r msg@Ping{} = (r, msg, [m_dest msg])
+process r msg@Routing{} = (r', msg', ids)
+                            where
+                                new_table = improve_table (n_source msg) (n_table msg) (r_table r)
+                                ids = if new_table == (r_table r) then [] else r_outs r
+                                r' = r {r_table = new_table}
+                                msg' = Routing {n_table = new_table, n_source = r_id r }
 
 
 improve_table s dists table = zipWith return_min_dist table table'

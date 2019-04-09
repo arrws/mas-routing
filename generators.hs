@@ -18,24 +18,18 @@ data Router = Router { r_id      :: Int
                      }
             deriving (Eq, Show)
 
-data Message' = Routing { n_table   :: [(Int, Int)]
+data Message = Routing { n_table   :: [(Int, Int)]
                         , n_source  :: Int
                         }
-              | Ping    { m_msg     :: [Char]
+             | Ping    { m_msg     :: [Char]
                         , m_dest    :: Int
                         }
-            deriving (Eq, Show)
-
-data Message = Message { msg    :: Message'
-                       , trc  :: [Char]
-                       }
             deriving (Eq, Show)
 
 
 symHuman = " |"
 symRouter = " "
 nINF = 666
-
 
 gimme_seed = R.mkStdGen 0
 
