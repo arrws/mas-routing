@@ -20,11 +20,11 @@ evalWriter m = fst $ runWriter m
 
 delayThread t = lift $ threadDelay (t * 100000)
 
-gen_message :: Human -> Proxy a b () WMessage IO c
+gen_message :: Sender -> Proxy a b () WMessage IO c
 gen_message h = forever $ do
-                delayThread (h_rate h)
-                let msg = Ping { m_msg = "ping" , m_dest = rem (h_id h +1) 2 }
-                    m = sign_message msg (h_id h) msg
+                delayThread (s_rate h)
+                let msg = Ping { m_msg = "ping" , m_dest = rem (s_id h +1) 2 }
+                    m = sign_message msg (s_id h) msg
                 yield m
 
 
@@ -32,7 +32,7 @@ print_message h = forever $ do
                 delayThread 1
                 m <- await
                 let msg = evalWriter m
-                    trace = execWriter $ m >>= sign_message msg (h_id h)
+                    trace = execWriter $ m >>= sign_message msg (s_id h)
                 lift $ putStr $ to_str msg trace
 
 

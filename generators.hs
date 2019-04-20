@@ -6,9 +6,9 @@ import Control.Monad.State
 import Data.List
 
 
-data Human = Human { h_id   :: Int
-                   , h_out  :: Int
-                   , h_rate :: Int
+data Sender = Sender { s_id   :: Int
+                   , s_out  :: Int
+                   , s_rate :: Int
                    }
             deriving (Eq, Show)
 
@@ -27,7 +27,7 @@ data Message = Routing { n_table   :: [(Int, Int)]
             deriving (Eq, Show)
 
 
-symHuman = " |"
+symsender = " |"
 symRouter = " "
 nINF = 666
 
@@ -54,17 +54,17 @@ build_router id outs table = Router { r_id = id
                                     , r_table = table
                                     }
 
-build_human :: Int -> Int -> Int -> Human
-build_human id out r = Human { h_id = id
-                             , h_out = out
-                             , h_rate = r
+build_sender :: Int -> Int -> Int -> Sender
+build_sender id out r = Sender { s_id = id
+                             , s_out = out
+                             , s_rate = r
                              }
 
 
-gen_humans :: [Int] -> [Int] -> [Human]
-gen_humans h_ids links = zipWith3 build_human h_ids links rates
+gen_senders :: [Int] -> [Int] -> [Sender]
+gen_senders s_ids links = zipWith3 build_sender s_ids links rates
                             where
-                                rates = evalState (replicateM (length h_ids) (gen_rand_num 1 1)) gimme_seed
+                                rates = evalState (replicateM (length s_ids) (gen_rand_num 1 1)) gimme_seed
 
 gen_routers :: [Int] -> [[Int]] -> [Router]
 gen_routers r_ids links = (zipWith3 build_router r_ids links tables)
@@ -82,8 +82,8 @@ init_table n links = map (fn links) [0..n]
 
 
 gen_links :: [Int] -> [Int] -> ([Int], [[Int]])
-gen_links h_ids r_ids = evalState (do
-                                    let index x = x - length h_ids
+gen_links s_ids r_ids = evalState (do
+                                    let index x = x - length s_ids
                                         add_edges links i  = case length $ links!!i of
                                                                0 -> (add_edge links i) >>= \x -> add_edge x i
                                                                1 -> add_edge links i
@@ -95,16 +95,16 @@ gen_links h_ids r_ids = evalState (do
                                                             e' <- gen_rand_elem free_nodes
                                                             return $ insert_into e (index e') $ insert_into e' i links
 
-                                    h_links <- replicateM (length h_ids) (gen_rand_elem r_ids)
+                                    s_links <- replicateM (length s_ids) (gen_rand_elem r_ids)
 
                                     let base = [[] | _ <- r_ids]
-                                        r_links_to_humans = foldr ($) base $ zipWith insert_into h_ids (map index h_links)
+                                        r_links_to_senders = foldr ($) base $ zipWith insert_into s_ids (map index s_links)
                                     r_links_to_routers <- foldM add_edges base [0..(length r_ids)-1]
 
-                                    let r_links = zipWith (++) r_links_to_humans r_links_to_routers
+                                    let r_links = zipWith (++) r_links_to_senders r_links_to_routers
 
                                     -- --         0, 1, 2, 3, 4, 5, ...
-                                    -- h_links = [3, 7, 8]
+                                    -- s_links = [3, 7, 8]
                                     -- r_links = [ [4, 5, 0] -- 3
                                     --           , [3, 6] -- 4
                                     --           , [3, 7, 8] -- 5
@@ -113,7 +113,7 @@ gen_links h_ids r_ids = evalState (do
                                     --           , [7, 5, 2] -- 8
                                     --           ]
 
-                                    return (h_links, r_links)
+                                    return (s_links, r_links)
                                 ) gimme_seed
 
 

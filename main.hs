@@ -7,7 +7,7 @@ import Control.Concurrent.Async
 import Control.Concurrent (threadDelay)
 
 import Generators
-import Human
+import Sender
 import Router
 import Message
 
@@ -16,16 +16,16 @@ main = do
         writer = fst
         reader = snd
 
-        num_humans = 6
+        num_senders = 6
         num_routers = 19
-        num = num_humans + num_routers
+        num = num_senders + num_routers
 
-        ids = [0..(num_humans + num_routers-1)]
-        h_ids = take num_humans ids
-        r_ids = drop num_humans ids
+        ids = [0..(num_senders + num_routers-1)]
+        s_ids = take num_senders ids
+        r_ids = drop num_senders ids
 
-        (h_links, r_links) = gen_links h_ids r_ids
-        humans = gen_humans h_ids h_links
+        (s_links, r_links) = gen_links s_ids r_ids
+        senders = gen_senders s_ids s_links
         routers = gen_routers r_ids r_links
 
 
@@ -33,22 +33,22 @@ main = do
     pipes <- replicateM num $ spawn unbounded
 
     let
-        h_readers = [ reader $ pipes !! i | i <- h_ids ]
-        h_writers = [ writer $ pipes !! (h_out h) | h <- humans ]
+        s_readers = [ reader $ pipes !! i | i <- s_ids ]
+        s_writers = [ writer $ pipes !! (s_out h) | h <- senders ]
 
         r_readers = [ reader $ pipes !! i | i <- r_ids ]
         r_writers = [ [ (i, writer $ pipes !! i) | i <- outs ] | outs <- (map r_outs routers) ]
 
-    print $ map h_id humans
-    print $ map h_out humans
+    print $ map s_id senders
+    print $ map s_out senders
     print $ map r_id routers
     print $ map r_outs routers
-    -- putStr $ foldr (\x b -> b ++ "\n" ++ show x) "" humans
+    -- putStr $ foldr (\x b -> b ++ "\n" ++ show x) "" senders
     -- putStr $ foldr (\x b -> b ++ "\n" ++ show x ++ "\n" ++ stringify_table (r_table x)) "" routers
 
-    h_tasks <- sequence $ [async $ task | task <- zipWith3 h_service humans h_readers h_writers ]
+    s_tasks <- sequence $ [async $ task | task <- zipWith3 s_service senders s_readers s_writers ]
     r_tasks <- sequence $ [async $ task | task <- zipWith3 r_service routers r_readers r_writers ]
-    waitAny h_tasks
+    waitAny s_tasks
 
     return ()
 
