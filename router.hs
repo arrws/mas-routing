@@ -14,6 +14,7 @@ import Message
 
 import Debug.Trace as DB
 
+
 r_service r input out_nodes = do
                                 broadcast_task <- async $ r_broadcast_task r out_nodes
                                 route_task <- async $ r_route_task r input out_nodes
@@ -25,27 +26,31 @@ r_route_task r input out_nodes = runEffect $ fromInput input
 r_broadcast_task r out_nodes = runEffect $ broadcast_message r out_nodes
 
 
+--- get the ourput pipes corresponding to the next nodes ids based on the routing table
 get_nodes nodes [] table = []
 get_nodes nodes ids table = map ( (get_node nodes) . fst . (table !!) ) ids
 get_node nodes id' = snd $ head $ filter (\(id, pipe) -> id==id') nodes
 
+
+--- send the message to the next nodes
 send_out :: (Monad (t IO), MonadTrans t) => [Output WMessage] -> WMessage -> t IO ()
-send_out outs m = mapM_ (flip send_message m) outs
+send_out outs m = delayThread 1 >> mapM_ (flip send_message m) outs
 
 
+--- broadcast the current routing table to the neighbouring agents
 broadcast_message :: (Monad (t IO), MonadTrans t) => Router -> [(Int, Output WMessage)] -> t IO ()
 broadcast_message r out_nodes = do
-                                delayThread 5
+                                delayThread 20
                                 let msg = Routing {n_table = r_table r, n_source = r_id r}
                                     m = sign_message msg (r_id r) msg
-                                    -- outs = DB.trace ("broadcast " ++ show (evalWriter m) ++ "    ") get_nodes out_nodes (r_outs r) (r_table r)
+                                    -- outs = DB.trace ("broadcast " ++ show (evalWriter m) ++ "    ") ...
                                     outs = get_nodes out_nodes (r_outs r) (r_table r)
                                 send_out outs m
 
 
+--- route the message to the apropiate agents
 r_route :: Router -> [(Int, Output WMessage)] -> Proxy () WMessage y' y IO b
 r_route r out_nodes = do
-                        delayThread 1
                         m <- await
                         let (r', msg, next_ids) = process r (evalWriter m)
                             m' = m >>= (sign_message msg (r_id r))
@@ -54,6 +59,7 @@ r_route r out_nodes = do
                         r_route r' out_nodes
 
 
+--- depending on the message type, return the next nodes ids and improve the routing table.
 process :: Router -> Message -> (Router, Message, [Int])
 process r msg@Ping{} = (r, msg, [m_dest msg])
 process r msg@Routing{} = (r', msg', ids)
@@ -64,6 +70,7 @@ process r msg@Routing{} = (r', msg', ids)
                                 msg' = Routing {n_table = new_table, n_source = r_id r }
 
 
+--- improve the current routing table if better route si found
 improve_table s dists table = zipWith return_min_dist table table'
                             where
                                 table' = map (\(n, d) -> (s, d+1)) dists
@@ -72,5 +79,4 @@ return_min_dist :: (Int, Int) -> (Int, Int) -> (Int, Int)
 return_min_dist (n1,d1) (n2,d2)
                 | d1 > d2   = (n2, d2)
                 | otherwise = (n1, d1)
-
 

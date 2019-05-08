@@ -7,9 +7,9 @@ import Data.List
 
 
 data Sender = Sender { s_id   :: Int
-                   , s_out  :: Int
-                   , s_rate :: Int
-                   }
+                     , s_out  :: Int
+                     , s_rate :: Int
+                     }
             deriving (Eq, Show)
 
 data Router = Router { r_id      :: Int
@@ -19,17 +19,17 @@ data Router = Router { r_id      :: Int
             deriving (Eq, Show)
 
 data Message = Routing { n_table   :: [(Int, Int)]
-                        , n_source  :: Int
-                        }
-             | Ping    { m_msg     :: [Char]
-                        , m_dest    :: Int
-                        }
+                       , n_source  :: Int
+                       }
+             | Ping { m_msg     :: [Char]
+                    , m_dest    :: Int
+                    }
             deriving (Eq, Show)
 
 
 symsender = " |"
 symRouter = " "
-nINF = 666
+nINF = 1000
 
 gimme_seed = R.mkStdGen 0
 
@@ -64,7 +64,7 @@ build_sender id out r = Sender { s_id = id
 gen_senders :: [Int] -> [Int] -> [Sender]
 gen_senders s_ids links = zipWith3 build_sender s_ids links rates
                             where
-                                rates = evalState (replicateM (length s_ids) (gen_rand_num 1 1)) gimme_seed
+                                rates = evalState (replicateM (length s_ids) (gen_rand_num 1 10)) gimme_seed
 
 gen_routers :: [Int] -> [[Int]] -> [Router]
 gen_routers r_ids links = (zipWith3 build_router r_ids links tables)
@@ -126,6 +126,5 @@ substract x l = filter (/=x) l
 substract_all :: [Int] -> [Int]-> [Int]
 substract_all [] l = l
 substract_all (x:xs) l = substract_all xs $ substract x l
-
 
 

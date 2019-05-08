@@ -16,26 +16,27 @@ main = do
         writer = fst
         reader = snd
 
-        num_senders = 6
-        num_routers = 19
+        num_senders = 5
+        num_routers = 3
         num = num_senders + num_routers
 
         ids = [0..(num_senders + num_routers-1)]
         s_ids = take num_senders ids
         r_ids = drop num_senders ids
 
+        --- generate random sender and router agents
         (s_links, r_links) = gen_links s_ids r_ids
         senders = gen_senders s_ids s_links
         routers = gen_routers r_ids r_links
 
 
-
+    --- spawn an async thread for each agent
     pipes <- replicateM num $ spawn unbounded
 
     let
+        --- compute the corresponding comunication pipes between agents
         s_readers = [ reader $ pipes !! i | i <- s_ids ]
         s_writers = [ writer $ pipes !! (s_out h) | h <- senders ]
-
         r_readers = [ reader $ pipes !! i | i <- r_ids ]
         r_writers = [ [ (i, writer $ pipes !! i) | i <- outs ] | outs <- (map r_outs routers) ]
 
@@ -43,12 +44,11 @@ main = do
     print $ map s_out senders
     print $ map r_id routers
     print $ map r_outs routers
-    -- putStr $ foldr (\x b -> b ++ "\n" ++ show x) "" senders
-    -- putStr $ foldr (\x b -> b ++ "\n" ++ show x ++ "\n" ++ stringify_table (r_table x)) "" routers
 
+    --- begin simulation
     s_tasks <- sequence $ [async $ task | task <- zipWith3 s_service senders s_readers s_writers ]
     r_tasks <- sequence $ [async $ task | task <- zipWith3 r_service routers r_readers r_writers ]
-    waitAny s_tasks
+    waitAny r_tasks
 
     return ()
 
