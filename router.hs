@@ -34,13 +34,14 @@ get_node nodes id' = snd $ head $ filter (\(id, pipe) -> id==id') nodes
 
 --- send the message to the next nodes
 send_out :: (Monad (t IO), MonadTrans t) => [Output WMessage] -> WMessage -> t IO ()
-send_out outs m = delayThread 1 >> mapM_ (flip send_message m) outs
+-- send_out outs m = delayThread 1 >> mapM_ (flip send_message m) outs
+send_out outs m = mapM_ (flip send_message m) outs
 
 
 --- broadcast the current routing table to the neighbouring agents
 broadcast_message :: (Monad (t IO), MonadTrans t) => Router -> [(Int, Output WMessage)] -> t IO ()
 broadcast_message r out_nodes = do
-                                delayThread 20
+                                delayThread 5
                                 let msg = Routing {n_table = r_table r, n_source = r_id r}
                                     m = sign_message msg (r_id r) msg
                                     -- outs = DB.trace ("broadcast " ++ show (evalWriter m) ++ "    ") ...
@@ -52,8 +53,10 @@ broadcast_message r out_nodes = do
 r_route :: Router -> [(Int, Output WMessage)] -> Proxy () WMessage y' y IO b
 r_route r out_nodes = do
                         m <- await
+                        delayThread 1
                         let (r', msg, next_ids) = process r (evalWriter m)
                             m' = m >>= (sign_message msg (r_id r))
+                            -- next_nodes = DB.trace ("!DB: " ++ show (r_id r) ++ "    ") get_nodes out_nodes next_ids (r_table r')
                             next_nodes = get_nodes out_nodes next_ids (r_table r')
                         send_out next_nodes m'
                         r_route r' out_nodes

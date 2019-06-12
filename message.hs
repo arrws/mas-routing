@@ -23,13 +23,13 @@ delayThread t = lift $ threadDelay (t * 100000)
 --- return a random message
 gen_message :: Sender -> Proxy a b () WMessage IO c
 gen_message s = forever $ do
-                let msg = Ping { m_msg = "ping" , m_dest = rem ((s_id s) +2) 5 } --- !!!
+                delayThread 1
+                let msg = Ping { m_msg = "ping" , m_dest = rem ((s_id s) +1) 3 } --- !!!
                     m = sign_message msg (s_id s) msg
                 yield m
 
 --- print the received message
 print_message h = forever $ do
-                delayThread 1
                 m <- await
                 let msg = evalWriter m
                     trace = execWriter $ m >>= sign_message msg (s_id h)
@@ -40,8 +40,8 @@ to_str :: Message -> [Int] -> [Char]
 to_str Ping {m_msg=msg, m_dest=dest} trc
             = "PING:   \ttrace: " ++ stringify_trace trc ++ "\n\n"
 to_str Routing {n_table=table, n_source=source} trc
-            = "ROUTING:\ttrace: " ++ stringify_trace trc ++ "\n" 
-                                  -- ++ stringify_table table ++ "\n\n"
+            = "ROUTING:\ttrace: " ++ stringify_trace trc ++ "\n"
+                                  ++ stringify_table table ++ "\n\n"
 
 stringify_trace = show
 stringify_table t = l0 ++ l1 ++ l2

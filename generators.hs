@@ -83,35 +83,49 @@ init_table n links = map (fn links) [0..n]
 
 gen_links :: [Int] -> [Int] -> ([Int], [[Int]])
 gen_links s_ids r_ids = evalState (do
-                                    let index x = x - length s_ids
-                                        add_edges links i  = case length $ links!!i of
-                                                               0 -> (add_edge links i) >>= \x -> add_edge x i
-                                                               1 -> add_edge links i
-                                                               _ -> return $ links
-                                        add_edge links i = do
-                                                            let e = r_ids !! i
-                                                                used_nodes = e:(links!!i)
-                                                                free_nodes = substract_all used_nodes r_ids
-                                                            e' <- gen_rand_elem free_nodes
-                                                            return $ insert_into e (index e') $ insert_into e' i links
+                                    -- let index x = x - length s_ids
+                                    --     add_edges links i  = case length $ links!!i of
+                                    --                            0 -> (add_edge links i) >>= \x -> add_edge x i
+                                    --                            1 -> add_edge links i
+                                    --                            _ -> return $ links
+                                    --     add_edge links i = do
+                                    --                         let e = r_ids !! i
+                                    --                             used_nodes = e:(links!!i)
+                                    --                             free_nodes = substract_all used_nodes r_ids
+                                    --                         e' <- gen_rand_elem free_nodes
+                                    --                         return $ insert_into e (index e') $ insert_into e' i links
 
-                                    s_links <- replicateM (length s_ids) (gen_rand_elem r_ids)
+                                    -- s_links <- replicateM (length s_ids) (gen_rand_elem r_ids)
 
-                                    let base = [[] | _ <- r_ids]
-                                        r_links_to_senders = foldr ($) base $ zipWith insert_into s_ids (map index s_links)
-                                    r_links_to_routers <- foldM add_edges base [0..(length r_ids)-1]
+                                    -- let base = [[] | _ <- r_ids]
+                                    --     r_links_to_senders = foldr ($) base $ zipWith insert_into s_ids (map index s_links)
+                                    -- r_links_to_routers <- foldM add_edges base [0..(length r_ids)-1]
 
-                                    let r_links = zipWith (++) r_links_to_senders r_links_to_routers
+                                    -- let r_links = zipWith (++) r_links_to_senders r_links_to_routers
 
-                                    -- --         0, 1, 2, 3, 4, 5, ...
-                                    -- s_links = [3, 7, 8]
-                                    -- r_links = [ [4, 5, 0] -- 3
-                                    --           , [3, 6] -- 4
-                                    --           , [3, 7, 8] -- 5
-                                    --           , [4, 7] -- 6
-                                    --           , [5, 6, 8, 1] -- 7
-                                    --           , [7, 5, 2] -- 8
-                                    --           ]
+                                    -- -- --         0, 1, 2, 3, 4, 5, ...
+                                    -- -- s_links = [3, 7, 8]
+                                    -- -- r_links = [ [4, 5, 0] -- 3
+                                    -- --           , [3, 6] -- 4
+                                    -- --           , [3, 7, 8] -- 5
+                                    -- --           , [4, 7] -- 6
+                                    -- --           , [5, 6, 8, 1] -- 7
+                                    -- --           , [7, 5, 2] -- 8
+                                    -- --           ]
+
+                                    let s_links = [10, 13, 3]
+                                        r_links = [ [2, 6, 4 ]
+                                                  , [3, 5 ]
+                                                  , [4, 8, 10 ]
+                                                  , [3, 7, 8 ]
+                                                  , [6, 8, 13 ]
+                                                  , [5, 6, 7, 9 ]
+                                                  , [8, 10 ]
+                                                  , [0, 5, 9, 11 ]
+                                                  , [10, 12 ]
+                                                  , [11, 13 ]
+                                                  , [1, 7, 12 ]
+                                                  ]
 
                                     return (s_links, r_links)
                                 ) gimme_seed
